@@ -1,18 +1,21 @@
 {
-  "name": "webde-drafts",
-  "version": "0.1.0",
+  "name": "webde-access",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Local MCP server for creating WEB.DE draft emails.",
+  "description": "Private local MCP server for full WEB.DE mailbox access.",
   "scripts": {
     "start": "node ./mcp/server.mjs",
-    "check": "node --check ./mcp/server.mjs"
+    "check": "node --check ./mcp/server.mjs",
+    "smoke": "node ./scripts/smoke-test.mjs",
+    "e2e:email": "node ./scripts/e2e-email.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^17.2.0",
     "imapflow": "^1.0.193",
-    "nodemailer": "^8.0.10",
+    "mailparser": "^3.9.11",
+    "nodemailer": "^9.0.1",
     "zod": "^4.1.5"
   }
 }

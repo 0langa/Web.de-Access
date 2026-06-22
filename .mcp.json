@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "webde-drafts": {
+    "webde-access": {
       "cwd": ".",
       "command": "node",
       "args": [

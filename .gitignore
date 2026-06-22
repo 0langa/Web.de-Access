@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+.codex/
 node_modules/
 npm-debug.log*
 yarn-debug.log*

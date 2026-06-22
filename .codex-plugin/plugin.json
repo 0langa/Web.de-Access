@@ -1,25 +1,26 @@
 {
-  "name": "webde-drafts",
-  "version": "0.1.0+codex.20260605014627",
-  "description": "Create draft emails in a WEB.DE mailbox from Codex.",
+  "name": "webde-access",
+  "version": "0.2.0+codex.20260622150646",
+  "description": "Private full-access WEB.DE mailbox connector for Codex.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
-    "displayName": "WEB.DE Drafts",
-    "shortDescription": "Create WEB.DE email drafts from Codex.",
-    "longDescription": "Adds a draft creation tool for WEB.DE accounts using IMAP draft sync.",
+    "displayName": "WEB.DE Access",
+    "shortDescription": "Read, manage, draft, and send WEB.DE mail from Codex.",
+    "longDescription": "Adds private WEB.DE mailbox access through IMAP and SMTP, including mailbox listing, message search and reading, attachment download, message management, drafts, sending, replies, and forwarding.",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [
       "Write",
+      "Read",
       "Email"
     ],
     "defaultPrompt": [
-      "Create a WEB.DE draft to my client about next week's review.",
-      "Draft a follow-up email in my WEB.DE account.",
-      "Save this message as a WEB.DE draft instead of sending it."
+      "Search my WEB.DE inbox for unread messages from today.",
+      "Read the latest WEB.DE email from my client and draft a reply.",
+      "Send this file as an attachment from my WEB.DE account."
     ],
     "brandColor": "#1F6FEB"
   },
