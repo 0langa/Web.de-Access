@@ -1,0 +1,18 @@
+{
+  "name": "webde-drafts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP server for creating WEB.DE draft emails.",
+  "scripts": {
+    "start": "node ./mcp/server.mjs",
+    "check": "node --check ./mcp/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "dotenv": "^17.2.0",
+    "imapflow": "^1.0.193",
+    "nodemailer": "^8.0.10",
+    "zod": "^4.1.5"
+  }
+}

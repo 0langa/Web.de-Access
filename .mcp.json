@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "webde-drafts": {
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ]
+    }
+  }
+}

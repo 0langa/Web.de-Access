@@ -1,0 +1,27 @@
+{
+  "name": "webde-drafts",
+  "version": "0.1.0+codex.20260605014627",
+  "description": "Create draft emails in a WEB.DE mailbox from Codex.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WEB.DE Drafts",
+    "shortDescription": "Create WEB.DE email drafts from Codex.",
+    "longDescription": "Adds a draft creation tool for WEB.DE accounts using IMAP draft sync.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "Write",
+      "Email"
+    ],
+    "defaultPrompt": [
+      "Create a WEB.DE draft to my client about next week's review.",
+      "Draft a follow-up email in my WEB.DE account.",
+      "Save this message as a WEB.DE draft instead of sending it."
+    ],
+    "brandColor": "#1F6FEB"
+  },
+  "mcpServers": "./.mcp.json"
+}
