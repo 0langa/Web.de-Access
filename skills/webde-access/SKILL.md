@@ -32,7 +32,7 @@ For details beyond the normal workflow, use:
 1. If the user asks about setup or a connection looks stale, call `check_webde_connection`.
 2. Use `list_webde_mailboxes` when mailbox names are unknown; WEB.DE folder names may be German.
 3. Use `search_webde_messages` before reading messages unless the user already provided a mailbox and UID.
-4. Use `read_webde_message` for message content. Ask for or infer `includeHtml` only when HTML is needed.
+4. Use `read_webde_message` for message content. Ask for or infer `includeHtml` only when raw HTML is needed.
 5. Use `download_webde_attachment` for attachment files. Do not inline large attachment content in chat.
 6. Use `export_webde_message` when the user wants a raw `.eml` copy for backup or manual import.
 7. Use `create_webde_draft` when the user wants to review before sending.

@@ -7,7 +7,7 @@ Read-only tools:
 - `get_webde_mailbox_status`: returns count and UID metadata for one mailbox.
 - `get_webde_quota`: returns IMAP quota data when WEB.DE exposes it.
 - `search_webde_messages`: returns message summaries with UID, envelope, flags, size, and downloadable parts.
-- `read_webde_message`: parses a message into plain text, optional HTML, addresses, references, and attachment metadata.
+- `read_webde_message`: parses a message into plain text, optional raw HTML, addresses, references, and attachment metadata. HTML-only messages still populate `parsed.text`; `parsed.textSource` reports whether text came from `text`, `html`, or `none`.
 
 Local export/download tools:
 

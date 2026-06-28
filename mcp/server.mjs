@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import dotenv from "dotenv";
+import { htmlToText } from "html-to-text";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -337,6 +338,53 @@ function firstAddress(addressObject) {
   return parsedAddressList(addressObject)[0]?.address || "";
 }
 
+function textFromHtml(html) {
+  if (typeof html !== "string" || !html.trim()) {
+    return "";
+  }
+
+  try {
+    return htmlToText(html, {
+      wordwrap: false,
+      selectors: [
+        { selector: "img", format: "skip" },
+        { selector: "a", options: { hideLinkHrefIfSameAsText: true } },
+      ],
+    }).trim();
+  } catch {
+    return html
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+}
+
+function parsedMessageText(parsed) {
+  if (typeof parsed?.text === "string" && parsed.text.trim()) {
+    return parsed.text;
+  }
+
+  return textFromHtml(parsed?.html || "");
+}
+
+function parsedMessageTextSource(parsed) {
+  if (typeof parsed?.text === "string" && parsed.text.trim()) {
+    return "text";
+  }
+  if (typeof parsed?.html === "string" && parsed.html.trim()) {
+    return "html";
+  }
+  return "none";
+}
+
 function messageSummary(msg) {
   return {
     seq: msg.seq,
@@ -514,7 +562,7 @@ function prefixedSubject(subject, prefix) {
 function quoteOriginal(parsed) {
   const from = firstAddress(parsed.from) || "unknown sender";
   const date = parsed.date ? new Date(parsed.date).toISOString() : "unknown date";
-  const body = parsed.text || parsed.html || "";
+  const body = parsedMessageText(parsed);
   return `\n\nOn ${date}, ${from} wrote:\n${body
     .split(/\r?\n/)
     .map((line) => `> ${line}`)
@@ -845,6 +893,7 @@ server.registerTool(
       withImapClient(async (client, config) => {
         const { msg, parsed } = await fetchParsedMessage(client, mailbox, uid, config);
         const summary = messageSummary(msg);
+        const text = parsedMessageText(parsed);
         return makeTextResult(`Loaded message ${uid} from ${mailbox}: ${summary.subject || "(no subject)"}.`, {
           mailbox,
           uid,
@@ -860,7 +909,9 @@ server.registerTool(
             cc: parsedAddressList(parsed.cc),
             bcc: parsedAddressList(parsed.bcc),
             replyTo: parsedAddressList(parsed.replyTo),
-            text: parsed.text || "",
+            text,
+            textSource: parsedMessageTextSource(parsed),
+            hasHtmlBody: typeof parsed.html === "string" && parsed.html.trim().length > 0,
             html: includeHtml ? parsed.html || "" : "",
             attachments: (parsed.attachments || []).map((attachment, index) => ({
               index,
@@ -1129,7 +1180,7 @@ server.registerTool(
           parsed.date ? new Date(parsed.date).toISOString() : ""
         }\nSubject: ${parsed.subject || ""}\nTo: ${parsedAddressList(parsed.to)
           .map((address) => address.address)
-          .join(", ")}\n\n${parsed.text || ""}`;
+          .join(", ")}\n\n${parsedMessageText(parsed)}`;
 
         const result = await sendMailAndMaybeSaveSent(config, {
           to,
