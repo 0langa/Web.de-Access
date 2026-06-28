@@ -445,7 +445,8 @@ function defaultPartFilename(node) {
   return `part-${node.part}${extension}`;
 }
 
-function buildSearchObject(input) {
+function buildSearchObject(input, options = {}) {
+  const omit = new Set(options.omit || []);
   const query = {};
   if (input.unseen) query.seen = false;
   if (input.seen) query.seen = true;
@@ -453,7 +454,7 @@ function buildSearchObject(input) {
   if (input.from) query.from = input.from;
   if (input.to) query.to = input.to;
   if (input.cc) query.cc = input.cc;
-  if (input.subject) query.subject = input.subject;
+  if (input.subject && !omit.has("subject")) query.subject = input.subject;
   if (input.text) query.text = input.text;
   if (input.body) query.body = input.body;
   if (input.since) query.since = input.since;
@@ -461,6 +462,28 @@ function buildSearchObject(input) {
   if (input.on) query.on = input.on;
   if (input.uid) query.uid = input.uid;
   return Object.keys(query).length ? query : { all: true };
+}
+
+async function filterIdsBySubject(client, ids, subject) {
+  if (!subject || !ids.length) {
+    return ids;
+  }
+
+  const needle = subject.toLocaleLowerCase();
+  const matched = [];
+  for await (const msg of client.fetch(
+    ids,
+    {
+      uid: true,
+      envelope: true,
+    },
+    { uid: true },
+  )) {
+    if ((msg.envelope?.subject || "").toLocaleLowerCase().includes(needle)) {
+      matched.push(msg.uid);
+    }
+  }
+  return matched;
 }
 
 function normalizeLimit(limit, fallback) {
@@ -799,7 +822,9 @@ server.registerTool(
     runTool(() =>
       withImapClient((client, config) =>
         withMailbox(client, input.mailbox, { readOnly: true }, async () => {
-          const ids = (await client.search(buildSearchObject(input), { uid: true })) || [];
+          const searchObject = buildSearchObject(input, { omit: input.subject ? ["subject"] : [] });
+          const searchedIds = (await client.search(searchObject, { uid: true })) || [];
+          const ids = await filterIdsBySubject(client, searchedIds, input.subject);
           const limit = normalizeLimit(input.limit, config.maxFetchMessages);
           const selectedIds = ids.slice(-limit).reverse();
           const messages = [];
@@ -954,6 +979,7 @@ server.registerTool(
           );
           ensureInside(config.attachmentDownloadDir, outputPath);
           await pipeline(content, fs.createWriteStream(outputPath));
+          const downloadedSize = fs.statSync(outputPath).size;
 
           return makeTextResult(`Downloaded attachment part ${part} from ${mailbox}/${uid}.`, {
             mailbox,
@@ -962,7 +988,8 @@ server.registerTool(
             outputPath,
             filename: path.basename(outputPath),
             contentType: meta.contentType || "application/octet-stream",
-            expectedSize: meta.expectedSize ?? null,
+            size: downloadedSize,
+            expectedSize: downloadedSize,
           });
         }),
       ),
