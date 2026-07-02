@@ -1,7 +1,7 @@
 {
   "name": "webde-access",
-  "version": "0.2.0",
-  "description": "Private full-access WEB.DE mailbox connector for Claude Code, sharing the same MCP server as the Codex connector.",
+  "version": "0.2.1",
+  "description": "Private full-access Web.de mailbox connector for Codex, Claude Code, and Kimi Code.",
   "author": {
     "name": "Local developer"
   },

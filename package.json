@@ -1,9 +1,9 @@
 {
   "name": "webde-access",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
-  "description": "Private local MCP server for full WEB.DE mailbox access.",
+  "description": "Private local MCP server for full Web.de mailbox access.",
   "scripts": {
     "start": "node ./mcp/server.mjs",
     "check": "node --check ./mcp/server.mjs",

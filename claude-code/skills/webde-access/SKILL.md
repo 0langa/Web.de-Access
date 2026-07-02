@@ -1,11 +1,11 @@
 ---
 name: webde-access
-description: Use this skill when the user wants private WEB.DE mailbox access, including reading, searching, drafting, sending, replying, forwarding, attachment handling, or mailbox/message management.
+description: Use this skill when the user wants private Web.de mailbox access, including reading, searching, drafting, sending, replying, forwarding, attachment handling, or mailbox/message management.
 ---
 
-# WEB.DE Access (Claude Code)
+# Web.de Access (Claude Code)
 
-Use this skill when the user wants to work with their WEB.DE mailbox from
+Use this skill when the user wants to work with their Web.de mailbox from
 Claude Code. The MCP server is the same one Codex uses
 (`../../../mcp/server.mjs`, 20 tools) — nothing was duplicated for Claude
 Code; the plugin manifest points at the same root-level `.mcp.json` Codex

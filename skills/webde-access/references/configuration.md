@@ -1,4 +1,4 @@
-# WEB.DE Access Configuration
+# Web.de Access Configuration
 
 The plugin reads `.env` from the plugin root. The required values are:
 

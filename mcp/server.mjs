@@ -25,7 +25,7 @@ if (fs.existsSync(envPath)) {
 
 const server = new McpServer({
   name: "webde-access",
-  version: "0.2.0",
+  version: "0.2.1",
   instructions:
     "Use this server for private WEB.DE mailbox access via IMAP and SMTP: list folders, search/read mail, manage messages, create drafts, send, reply, forward, and save attachments.",
 });

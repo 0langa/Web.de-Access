@@ -1,4 +1,4 @@
-# WEB.DE Access Tool Behavior
+# Web.de Access Tool Behavior
 
 Read-only tools:
 

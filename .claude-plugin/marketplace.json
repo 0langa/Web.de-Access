@@ -1,6 +1,6 @@
 {
   "name": "webde-access-local",
-  "description": "Local marketplace for installing the WEB.DE Access plugin from this checkout.",
+  "description": "Local marketplace for installing the Web.de Access plugin from this checkout.",
   "owner": {
     "name": "Local developer"
   },

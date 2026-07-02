@@ -1,11 +1,11 @@
 ---
 name: webde-access
-description: Use this skill when the user wants private WEB.DE mailbox access, including reading, searching, drafting, sending, replying, forwarding, attachment handling, or mailbox/message management.
+description: Use this skill when the user wants private Web.de mailbox access, including reading, searching, drafting, sending, replying, forwarding, attachment handling, or mailbox/message management.
 ---
 
-# WEB.DE Access
+# Web.de Access
 
-Use this skill when the user wants to work with their WEB.DE mailbox from Codex.
+Use this skill when the user wants to work with their Web.de mailbox from Codex.
 
 For details beyond the normal workflow, use:
 

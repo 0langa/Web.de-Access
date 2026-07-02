@@ -1,15 +1,15 @@
 {
   "name": "webde-access",
-  "version": "0.2.0+codex.20260622150646",
-  "description": "Private full-access WEB.DE mailbox connector for Codex.",
+  "version": "0.2.1",
+  "description": "Private full-access Web.de mailbox connector for Codex, Claude Code, and Kimi Code.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
-    "displayName": "WEB.DE Access",
-    "shortDescription": "Read, manage, draft, and send WEB.DE mail from Codex.",
-    "longDescription": "Adds private WEB.DE mailbox access through IMAP and SMTP, including mailbox listing, message search and reading, attachment download, message management, drafts, sending, replies, and forwarding.",
+    "displayName": "Web.de Access",
+    "shortDescription": "Read, manage, draft, and send Web.de mail.",
+    "longDescription": "Adds private Web.de mailbox access through IMAP and SMTP, including mailbox listing, message search and reading, attachment download, message management, drafts, sending, replies, and forwarding.",
     "developerName": "Local developer",
     "category": "Productivity",
     "capabilities": [

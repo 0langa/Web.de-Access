@@ -1,6 +1,6 @@
-# WEB.DE Access
+# Web.de Access
 
-Local email connector for using a WEB.DE mailbox from Codex through IMAP and SMTP. It can search
+Local email connector for using a Web.de mailbox from Codex, Claude Code, and Kimi Code through IMAP and SMTP. It can search
 and read mail, download attachments, create drafts, send, reply, forward, manage flags, and organize
 mailboxes. Credentials stay on the local machine and are never sent to a third-party service.
 
@@ -35,12 +35,12 @@ WEB.DE may change the names or location of settings. Consult the official
 Clone the repository and install its pinned dependencies:
 
 ```powershell
-git clone https://github.com/0langa/WebDE-Codex-Plugin.git
-Set-Location WebDE-Codex-Plugin
+git clone https://github.com/0langa/Web.de-Access.git
+Set-Location "Web.de Access"
 npm ci
 ```
 
-On macOS or Linux, use `cd WebDE-Codex-Plugin` instead of `Set-Location`.
+On macOS or Linux, use `cd "Web.de Access"` instead of `Set-Location`.
 
 ## 3. Configure Credentials
 
@@ -93,13 +93,13 @@ Register the server using the absolute path to `mcp/server.mjs`.
 Windows example:
 
 ```powershell
-codex mcp add webde-access -- node "C:\absolute\path\to\WebDE-Codex-Plugin\mcp\server.mjs"
+codex mcp add webde-access -- node "C:\absolute\path\to\Web.de Access\mcp\server.mjs"
 ```
 
 macOS or Linux example:
 
 ```bash
-codex mcp add webde-access -- node "/absolute/path/to/WebDE-Codex-Plugin/mcp/server.mjs"
+codex mcp add webde-access -- node "/absolute/path/to/Web.de Access/mcp/server.mjs"
 ```
 
 Restart Codex or open a new thread after registration. The server loads `.env` from the repository
@@ -115,7 +115,7 @@ and `.claude-plugin/marketplace.json`, the same pattern as the Codex plugin bund
 steps 1–4 above (WEB.DE setup, `npm ci`, `.env` from `.env.example`, `npm run smoke`), then:
 
 ```text
-claude plugin marketplace add <path-to-WebDE-Codex-Plugin>
+claude plugin marketplace add <path-to-Web.de-Access>
 claude plugin install webde-access@webde-access-local
 ```
 
@@ -140,7 +140,7 @@ For development, use a dedicated test mailbox and create the managed-copy `.env`
 environment variables only. Then install or reload the plugin from Kimi:
 
 ```text
-/plugins install <path-to-WebDE-Codex-Plugin>
+/plugins install <path-to-Web.de-Access>
 /reload
 ```
 
