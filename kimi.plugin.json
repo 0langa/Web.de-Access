@@ -1,0 +1,35 @@
+{
+  "name": "webde-access",
+  "version": "0.2.0",
+  "description": "Private WEB.DE mailbox connector for Kimi Code through the same local MCP server used by Codex and Claude Code.",
+  "keywords": [
+    "webde",
+    "email",
+    "imap",
+    "smtp",
+    "kimi-code"
+  ],
+  "author": {
+    "name": "Local developer"
+  },
+  "homepage": "https://github.com/0langa/WebDE-Codex-Plugin",
+  "license": "MIT",
+  "interface": {
+    "displayName": "WEB.DE Access",
+    "shortDescription": "Read, draft, send, and manage WEB.DE mail.",
+    "longDescription": "Adds private WEB.DE mailbox access through IMAP and SMTP, including mailbox listing, message search and reading, attachment download, message management, drafts, sending, replies, and forwarding.",
+    "developerName": "Local developer",
+    "websiteURL": "https://github.com/0langa/WebDE-Codex-Plugin"
+  },
+  "skills": "./claude-code/skills/",
+  "mcpServers": {
+    "webde-access": {
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ],
+      "cwd": "./"
+    }
+  },
+  "skillInstructions": "Use WEB.DE Access only for the configured mailbox. Never read, print, or summarize .env credential files. Confirm recipients, subject, and intent before sending email, and confirm before deleting or permanently mutating messages."
+}

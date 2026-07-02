@@ -108,6 +108,45 @@ root automatically.
 The repository is also a Codex plugin bundle through `.codex-plugin/plugin.json` and `.mcp.json` for
 users who maintain a local Codex plugin marketplace.
 
+## Claude Code
+
+The repository is also an installable Claude Code plugin bundle through `.claude-plugin/plugin.json`
+and `.claude-plugin/marketplace.json`, the same pattern as the Codex plugin bundle above. Complete
+steps 1–4 above (WEB.DE setup, `npm ci`, `.env` from `.env.example`, `npm run smoke`), then:
+
+```text
+claude plugin marketplace add <path-to-WebDE-Codex-Plugin>
+claude plugin install webde-access@webde-access-local
+```
+
+The plugin manifest declares `mcpServers` pointing at the same root-level `.mcp.json` Codex uses (no
+new server, no duplicated config) and `skills` pointing at [`claude-code/skills/webde-access/SKILL.md`](claude-code/skills/webde-access/SKILL.md),
+a Claude Code-specific skill file documenting the same 20 tools as the Codex skill plus explicit
+confirm-before-send/delete guidance matching Claude Code's own action-safety conventions. This skill
+lives outside `.claude/` deliberately — that path is reserved for project-level auto-discovery, and a
+plugin manifest declaring a skill already covered by project auto-discovery fails to load (the same
+class of conflict Claude Code reports as "Duplicate hooks file detected" for hook manifests).
+
+No code in `mcp/server.mjs` or `.mcp.json` changed for Claude Code support — it is the same server
+and config Codex uses.
+
+## Kimi Code
+
+The repository includes `kimi.plugin.json` for Kimi Code. Kimi installs local plugins by copying the
+plugin directory into `C:\Users\Julius\.kimi-code\plugins\managed\<id>`, so never install a copy that
+contains a real `.env` file unless you intentionally want that mailbox available to Kimi.
+
+For development, use a dedicated test mailbox and create the managed-copy `.env` from development
+environment variables only. Then install or reload the plugin from Kimi:
+
+```text
+/plugins install <path-to-WebDE-Codex-Plugin>
+/reload
+```
+
+The Kimi manifest points at the same `mcp/server.mjs` MCP server and the stricter Claude/Kimi skill
+instructions in `claude-code/skills/webde-access/SKILL.md`.
+
 ## Capabilities
 
 - Verify IMAP/SMTP connectivity and inspect storage quota
