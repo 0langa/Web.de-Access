@@ -1,0 +1,32 @@
+{
+  "profiles": {
+    "dev": {
+      "profile": "dev",
+      "email": "dev-mailbox@example.com",
+      "defaultFromName": "",
+      "folders": {
+        "inbox": "INBOX",
+        "sent": "Gesendet",
+        "drafts": "Entwurf",
+        "outbox": "Postausgang",
+        "trash": "Papierkorb",
+        "spam": "Spam",
+        "junk": "Junk-E-Mail",
+        "important": "wichtig"
+      },
+      "attachmentDownloadDir": "%USERPROFILE%\\Downloads\\webde-attachments",
+      "allowedAttachmentRoots": [],
+      "saveSentCopy": true,
+      "markReadOnFetch": false,
+      "maxFetchMessages": 50,
+      "maxAttachmentMb": 50,
+      "maxSourceMb": 15,
+      "imapHost": "imap.web.de",
+      "imapPort": 993,
+      "imapSecure": true,
+      "smtpHost": "smtp.web.de",
+      "smtpPort": 587,
+      "smtpSecure": false
+    }
+  }
+}

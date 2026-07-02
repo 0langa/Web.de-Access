@@ -44,31 +44,41 @@ On macOS or Linux, use `cd "Web.de Access"` instead of `Set-Location`.
 
 ## 3. Configure Credentials
 
-Create a private `.env` from the safe template:
+Credentials are stored in the operating system credential manager through `keytar`, not in this
+repository. Non-secret profile metadata is stored in:
 
 ```powershell
-Copy-Item .env.example .env
+%APPDATA%\webde-access\profiles.json
 ```
 
-On macOS or Linux:
+Create or update a profile interactively:
 
-```bash
-cp .env.example .env
+```powershell
+npm run auth:login -- --profile personal
 ```
 
-Edit only the local `.env` and set:
+For Julius' one-time migration from temporary user environment variables, import the dev and
+personal profiles without printing the app-password values:
 
-```env
-WEBDE_EMAIL=your-address@web.de
-WEBDE_PASSWORD=replace-with-your-app-password
-WEBDE_DEFAULT_FROM_NAME=Your Name
+```powershell
+npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL_0langa --password-env WEBDE_APP_PASSWORD_0langa
+npm run auth:import-env -- --profile personal --email-env WEBDE_IMPORTANT_EMAIL_Julius --fallback-email-env WEBDE_IMPORTENT_EMAIL_Julius --password-env WEBDE_APP_PASSWORD_Julius
+npm run auth:status
 ```
 
-The repository ignores `.env` and `.env.*`; `.env.example` is the only environment file intended
-for Git. Never remove those ignore rules or commit a real credential file.
+If the personal email environment variable is missing or misspelled, pass it explicitly with
+`--email`. Do not paste the app password into chat or commit history.
 
-Most accounts can keep the remaining defaults. `WEBDE_ATTACHMENT_DOWNLOAD_DIR` may be left empty;
-downloads then go to `Downloads/webde-attachments` under the current user profile.
+After both profiles validate, remove the temporary migration variables and old plugin `.env` files:
+
+```powershell
+npm run auth:cleanup-env -- --env WEBDE_DEV_EMAIL_0langa --env WEBDE_APP_PASSWORD_0langa --env WEBDE_IMPORTANT_EMAIL_Julius --env WEBDE_IMPORTENT_EMAIL_Julius --env WEBDE_APP_PASSWORD_Julius --purge-plugin-envs
+npm run security:scan
+```
+
+The MCP server refuses to start when legacy WEB.DE password environment variables or plugin-local
+`.env` credentials are present. That fail-closed behavior prevents accidental credential leaks
+through repo copies, plugin caches, managed installs, or marketplace packaging.
 
 ## 4. Verify the Connection
 
@@ -76,15 +86,16 @@ Run the read-only checks:
 
 ```powershell
 npm run check
-npm run smoke
+npm run smoke -- --profile dev
+npm run smoke -- --profile personal
 ```
 
 `npm run smoke` connects to WEB.DE, lists the 20 exposed tools, checks IMAP and SMTP, reads quota
 metadata, and reads one message summary. It does not send, delete, or move mail.
 
 If a configured folder fails, note the exact names returned by `list_webde_mailboxes` and update the
-matching `WEBDE_*_MAILBOX` value in `.env`. German WEB.DE accounts commonly use `Gesendet`,
-`Entwurf`, and `Papierkorb`, but the server response is authoritative.
+matching profile metadata in `%APPDATA%\webde-access\profiles.json`. German WEB.DE accounts commonly
+use `Gesendet`, `Entwurf`, and `Papierkorb`, but the server response is authoritative.
 
 ## 5. Add To Codex
 
@@ -102,8 +113,8 @@ macOS or Linux example:
 codex mcp add webde-access -- node "/absolute/path/to/Web.de Access/mcp/server.mjs"
 ```
 
-Restart Codex or open a new thread after registration. The server loads `.env` from the repository
-root automatically.
+Restart Codex or open a new thread after registration. The server loads credentials from the OS
+credential manager using the `personal` profile unless `WEBDE_ACCESS_PROFILE` is set.
 
 The repository is also a Codex plugin bundle through `.codex-plugin/plugin.json` and `.mcp.json` for
 users who maintain a local Codex plugin marketplace.
@@ -112,7 +123,7 @@ users who maintain a local Codex plugin marketplace.
 
 The repository is also an installable Claude Code plugin bundle through `.claude-plugin/plugin.json`
 and `.claude-plugin/marketplace.json`, the same pattern as the Codex plugin bundle above. Complete
-steps 1–4 above (WEB.DE setup, `npm ci`, `.env` from `.env.example`, `npm run smoke`), then:
+steps 1–4 above (WEB.DE setup, `npm ci`, profile login/import, `npm run smoke`), then:
 
 ```text
 claude plugin marketplace add <path-to-Web.de-Access>
@@ -132,12 +143,10 @@ and config Codex uses.
 
 ## Kimi Code
 
-The repository includes `kimi.plugin.json` for Kimi Code. Kimi installs local plugins by copying the
-plugin directory into `C:\Users\Julius\.kimi-code\plugins\managed\<id>`, so never install a copy that
-contains a real `.env` file unless you intentionally want that mailbox available to Kimi.
+The repository includes `kimi.plugin.json` for Kimi Code. The Kimi manifest pins
+`WEBDE_ACCESS_PROFILE=dev`, so Kimi uses the development mailbox by default.
 
-For development, use a dedicated test mailbox and create the managed-copy `.env` from development
-environment variables only. Then install or reload the plugin from Kimi:
+Install or reload the plugin from Kimi:
 
 ```text
 /plugins install <path-to-Web.de-Access>
@@ -145,7 +154,8 @@ environment variables only. Then install or reload the plugin from Kimi:
 ```
 
 The Kimi manifest points at the same `mcp/server.mjs` MCP server and the stricter Claude/Kimi skill
-instructions in `claude-code/skills/webde-access/SKILL.md`.
+instructions in `claude-code/skills/webde-access/SKILL.md`. Do not switch Kimi to the `personal`
+profile unless the user explicitly asks for that trust boundary change.
 
 ## Capabilities
 
@@ -189,8 +199,8 @@ $env:WEBDE_E2E_RECIPIENT="a-test-mailbox@example.com"
 npm run e2e:email
 ```
 
-Use only a mailbox you control. The environment variable is process-local and is not written to
-`.env` by the test.
+Use only a mailbox you control. The recipient environment variable is process-local and is not
+stored in the credential manager or profile metadata.
 
 ## Troubleshooting
 
@@ -198,7 +208,7 @@ Use only a mailbox you control. The environment variable is process-local and is
 
 - Confirm the full WEB.DE email address is used.
 - Confirm POP3/IMAP access is enabled in WEB.DE.
-- Create a fresh application-specific password and update only the local `.env`.
+- Create a fresh application-specific password and update the profile with `npm run auth:login`.
 - Do not add quotes or trailing spaces around credentials unless they are part of the password.
 
 ### IMAP works but SMTP fails
@@ -223,7 +233,8 @@ exact path as `WEBDE_DRAFTS_MAILBOX`.
 ```powershell
 npm ci
 npm run check
-npm run smoke
+npm run smoke -- --profile dev
+npm run security:scan
 ```
 
 Do not run `npm run e2e:email` in CI without a dedicated test account and secret isolation.

@@ -46,8 +46,8 @@ files Codex uses, not copies):
 
 ## Mailbox Names
 
-Prefer configured mailbox names from `.env` and live IMAP results over assumptions. Common WEB.DE
-folders in this account are:
+Prefer configured profile metadata and live IMAP results over assumptions. Common WEB.DE folders in
+this account are:
 
 ```text
 INBOX
@@ -69,7 +69,8 @@ wichtig
 - For ambiguous destructive requests, create a draft or summarize the intended action first, then ask before proceeding.
 - Prefer moving messages to `Papierkorb` over permanent deletion unless permanent deletion is explicit.
 - When attaching local files, pass file paths through `fileAttachments`; do not read large files into chat.
-- Never read, print, or summarize the contents of the repository's `.env` file — mailbox credentials live there and must stay untouched by the assistant.
+- Never read, print, or summarize `.env`, WEB.DE app-password environment variables, or OS credential
+  data. Credentials are managed by `npm run auth:*` and the operating system credential manager.
 
 ## Examples
 
@@ -113,8 +114,8 @@ Reply to a message:
 
 - If authentication fails, confirm WEB.DE POP3/IMAP access is enabled and use an application-specific password if WEB.DE requests one.
 - If a folder fails to open, call `list_webde_mailboxes` and update the mailbox name to the exact IMAP path.
-- If SMTP verification fails but IMAP works, re-check `WEBDE_SMTP_HOST`, `WEBDE_SMTP_PORT`, and STARTTLS settings.
-- If attachment download fails, check `WEBDE_ATTACHMENT_DOWNLOAD_DIR` and `WEBDE_MAX_ATTACHMENT_MB`.
+- If SMTP verification fails but IMAP works, re-check the profile SMTP host, port, and STARTTLS settings.
+- If attachment download fails, check the profile attachment directory and max attachment size.
 - If quota returns `null`, WEB.DE did not expose quota data over the current IMAP connection.
 
 ## Related

@@ -28,8 +28,11 @@
       "args": [
         "./mcp/server.mjs"
       ],
-      "cwd": "./"
+      "cwd": "./",
+      "env": {
+        "WEBDE_ACCESS_PROFILE": "dev"
+      }
     }
   },
-  "skillInstructions": "Use Web.de Access only for the configured mailbox. Never read, print, or summarize .env credential files. Confirm recipients, subject, and intent before sending email, and confirm before deleting or permanently mutating messages."
+  "skillInstructions": "Use Web.de Access only for the configured mailbox. Kimi Code must use the dev profile unless the user explicitly reconfigures it. Never read, print, or summarize credential files or WEB.DE auth environment variables. Confirm recipients, subject, and intent before sending email, and confirm before deleting or permanently mutating messages."
 }

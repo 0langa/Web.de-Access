@@ -4,7 +4,6 @@ import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-import dotenv from "dotenv";
 import { htmlToText } from "html-to-text";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
@@ -13,15 +12,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import nodemailer from "nodemailer";
 import * as z from "zod/v4";
+import { loadRuntimeConfig } from "./auth-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pluginRoot = path.resolve(__dirname, "..");
-const envPath = path.join(pluginRoot, ".env");
-
-if (fs.existsSync(envPath)) {
-  dotenv.config({ path: envPath, quiet: true });
-}
 
 const server = new McpServer({
   name: "webde-access",
@@ -30,81 +25,8 @@ const server = new McpServer({
     "Use this server for private WEB.DE mailbox access via IMAP and SMTP: list folders, search/read mail, manage messages, create drafts, send, reply, forward, and save attachments.",
 });
 
-function requireEnv(name) {
-  const value = process.env[name];
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`Missing required setting: ${name}`);
-  }
-  return value.trim();
-}
-
-function parsePort(value, fallback, envName) {
-  const chosen = value?.trim() ? Number.parseInt(value, 10) : fallback;
-  if (!Number.isInteger(chosen) || chosen <= 0) {
-    throw new Error(`${envName} must be a positive integer.`);
-  }
-  return chosen;
-}
-
-function parsePositiveInt(value, fallback, envName) {
-  const chosen = value?.trim() ? Number.parseInt(value, 10) : fallback;
-  if (!Number.isInteger(chosen) || chosen <= 0) {
-    throw new Error(`${envName} must be a positive integer.`);
-  }
-  return chosen;
-}
-
-function parseBool(value, fallback = false) {
-  if (typeof value !== "string" || !value.trim()) {
-    return fallback;
-  }
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-}
-
-function getConfig() {
-  const attachmentDownloadDir =
-    process.env.WEBDE_ATTACHMENT_DOWNLOAD_DIR?.trim() ||
-    path.join(process.env.USERPROFILE || process.cwd(), "Downloads", "webde-attachments");
-  const allowedAttachmentRoots = (process.env.WEBDE_ALLOWED_ATTACHMENT_ROOTS || "")
-    .split(path.delimiter)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => path.resolve(item));
-
-  return {
-    email: requireEnv("WEBDE_EMAIL"),
-    password: requireEnv("WEBDE_PASSWORD"),
-    defaultFromName: process.env.WEBDE_DEFAULT_FROM_NAME?.trim() || "",
-    folders: {
-      inbox: process.env.WEBDE_INBOX_MAILBOX?.trim() || "INBOX",
-      sent: process.env.WEBDE_SENT_MAILBOX?.trim() || "Gesendet",
-      drafts: process.env.WEBDE_DRAFTS_MAILBOX?.trim() || "Entwurf",
-      outbox: process.env.WEBDE_OUTBOX_MAILBOX?.trim() || "Postausgang",
-      trash: process.env.WEBDE_TRASH_MAILBOX?.trim() || "Papierkorb",
-      spam: process.env.WEBDE_SPAM_MAILBOX?.trim() || "Spam",
-      junk: process.env.WEBDE_JUNK_MAILBOX?.trim() || "Junk-E-Mail",
-      important: process.env.WEBDE_IMPORTANT_MAILBOX?.trim() || "wichtig",
-    },
-    attachmentDownloadDir: path.resolve(attachmentDownloadDir),
-    allowedAttachmentRoots,
-    saveSentCopy: parseBool(process.env.WEBDE_SAVE_SENT_COPY, true),
-    markReadOnFetch: parseBool(process.env.WEBDE_MARK_READ_ON_FETCH, false),
-    maxFetchMessages: parsePositiveInt(process.env.WEBDE_MAX_FETCH_MESSAGES, 50, "WEBDE_MAX_FETCH_MESSAGES"),
-    maxAttachmentBytes:
-      parsePositiveInt(process.env.WEBDE_MAX_ATTACHMENT_MB, 50, "WEBDE_MAX_ATTACHMENT_MB") * 1024 * 1024,
-    maxSourceBytes:
-      parsePositiveInt(process.env.WEBDE_MAX_SOURCE_MB, 15, "WEBDE_MAX_SOURCE_MB") * 1024 * 1024,
-    imapHost: process.env.WEBDE_IMAP_HOST?.trim() || "imap.web.de",
-    imapPort: parsePort(process.env.WEBDE_IMAP_PORT, 993, "WEBDE_IMAP_PORT"),
-    imapSecure: parseBool(process.env.WEBDE_IMAP_SECURE, true),
-    smtpHost: process.env.WEBDE_SMTP_HOST?.trim() || "smtp.web.de",
-    smtpPort: parsePort(process.env.WEBDE_SMTP_PORT, 587, "WEBDE_SMTP_PORT"),
-    smtpSecure: parseBool(process.env.WEBDE_SMTP_SECURE, false),
-  };
-}
-
 async function withImapClient(work) {
-  const config = getConfig();
+  const config = await loadRuntimeConfig({ pluginRoot });
   const client = new ImapFlow({
     host: config.imapHost,
     port: config.imapPort,
@@ -1080,7 +1002,7 @@ server.registerTool(
     }
 
     return runTool(async () => {
-      const config = getConfig();
+      const config = await loadRuntimeConfig({ pluginRoot });
       const result = await sendMailAndMaybeSaveSent(config, {
         to,
         subject,

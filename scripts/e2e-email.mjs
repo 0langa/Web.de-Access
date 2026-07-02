@@ -3,16 +3,27 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { legacySecretNames } from "../mcp/auth-config.mjs";
 
 const recipient = process.env.WEBDE_E2E_RECIPIENT;
 if (!recipient) {
   throw new Error("Set WEBDE_E2E_RECIPIENT to an address that can receive test mail.");
+}
+const profileIndex = process.argv.indexOf("--profile");
+const profile = profileIndex >= 0 ? process.argv[profileIndex + 1] : process.env.WEBDE_ACCESS_PROFILE;
+const childEnv = { ...process.env };
+for (const name of legacySecretNames) {
+  delete childEnv[name];
+}
+if (profile) {
+  childEnv.WEBDE_ACCESS_PROFILE = profile;
 }
 
 const transport = new StdioClientTransport({
   command: "node",
   args: ["./mcp/server.mjs"],
   cwd: process.cwd(),
+  env: childEnv,
 });
 const client = new Client({ name: "webde-access-email-e2e", version: "0.1.0" });
 

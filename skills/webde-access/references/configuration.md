@@ -1,47 +1,67 @@
 # Web.de Access Configuration
 
-The plugin reads `.env` from the plugin root. The required values are:
+The plugin stores WEB.DE app passwords in the operating system credential manager through `keytar`.
+It stores non-secret profile metadata in `%APPDATA%\webde-access\profiles.json`.
 
-```env
-WEBDE_EMAIL=you@web.de
-WEBDE_PASSWORD=application-specific-password
+Create a profile:
+
+```powershell
+npm run auth:login -- --profile personal
 ```
+
+Import from temporary migration environment variables:
+
+```powershell
+npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL_0langa --password-env WEBDE_APP_PASSWORD_0langa
+npm run auth:import-env -- --profile personal --email-env WEBDE_IMPORTANT_EMAIL_Julius --fallback-email-env WEBDE_IMPORTENT_EMAIL_Julius --password-env WEBDE_APP_PASSWORD_Julius
+```
+
+Never read, print, or copy WEB.DE app-password values. The MCP server refuses to start when legacy
+plugin-local `.env` credentials or WEB.DE password environment variables are present.
 
 Default WEB.DE protocol settings:
 
-```env
-WEBDE_IMAP_HOST=imap.web.de
-WEBDE_IMAP_PORT=993
-WEBDE_IMAP_SECURE=true
-WEBDE_SMTP_HOST=smtp.web.de
-WEBDE_SMTP_PORT=587
-WEBDE_SMTP_SECURE=false
+```json
+{
+  "imapHost": "imap.web.de",
+  "imapPort": 993,
+  "imapSecure": true,
+  "smtpHost": "smtp.web.de",
+  "smtpPort": 587,
+  "smtpSecure": false
+}
 ```
 
 Mailbox settings should use exact IMAP folder names from `list_webde_mailboxes`:
 
-```env
-WEBDE_INBOX_MAILBOX=INBOX
-WEBDE_SENT_MAILBOX=Gesendet
-WEBDE_DRAFTS_MAILBOX=Entwurf
-WEBDE_OUTBOX_MAILBOX=Postausgang
-WEBDE_TRASH_MAILBOX=Papierkorb
-WEBDE_SPAM_MAILBOX=Spam
-WEBDE_JUNK_MAILBOX=Junk-E-Mail
-WEBDE_IMPORTANT_MAILBOX=wichtig
+```json
+{
+  "folders": {
+    "inbox": "INBOX",
+    "sent": "Gesendet",
+    "drafts": "Entwurf",
+    "outbox": "Postausgang",
+    "trash": "Papierkorb",
+    "spam": "Spam",
+    "junk": "Junk-E-Mail",
+    "important": "wichtig"
+  }
+}
 ```
 
 Local file limits and defaults:
 
-```env
-WEBDE_DEFAULT_FROM_NAME=Your Name
-WEBDE_ATTACHMENT_DOWNLOAD_DIR=
-WEBDE_ALLOWED_ATTACHMENT_ROOTS=
-WEBDE_SAVE_SENT_COPY=true
-WEBDE_MARK_READ_ON_FETCH=false
-WEBDE_MAX_FETCH_MESSAGES=50
-WEBDE_MAX_ATTACHMENT_MB=50
-WEBDE_MAX_SOURCE_MB=15
+```json
+{
+  "defaultFromName": "Your Name",
+  "attachmentDownloadDir": "%USERPROFILE%\\Downloads\\webde-attachments",
+  "allowedAttachmentRoots": [],
+  "saveSentCopy": true,
+  "markReadOnFetch": false,
+  "maxFetchMessages": 50,
+  "maxAttachmentMb": 50,
+  "maxSourceMb": 15
+}
 ```
 
 WEB.DE setup requirements:
@@ -49,4 +69,4 @@ WEB.DE setup requirements:
 - POP3/IMAP access must be enabled in WEB.DE settings.
 - If WEB.DE requests it, use an application-specific password instead of the normal login password.
 - WEB.DE documents application-specific passwords for external email programs.
-- SMTP uses STARTTLS on port 587 when `WEBDE_SMTP_SECURE=false`.
+- SMTP uses STARTTLS on port 587 when `smtpSecure` is `false`.
