@@ -4,7 +4,7 @@
       "cwd": ".",
       "command": "node",
       "args": [
-        "./mcp/server.mjs"
+        "./scripts/start-mcp.mjs"
       ]
     }
   }

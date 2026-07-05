@@ -14,3 +14,10 @@ test("Claude and Codex manifests contain no WEB.DE credentials", () => {
   assert.doesNotMatch(claude, /WEBDE_(?:APP_)?PASSWORD/);
   assert.doesNotMatch(codex, /WEBDE_(?:APP_)?PASSWORD/);
 });
+
+test("Codex MCP entrypoint bootstraps OS-native dependencies", () => {
+  const mcp = JSON.parse(fs.readFileSync(".mcp.json", "utf8"));
+  assert.equal(mcp.mcpServers["webde-access"].command, "node");
+  assert.deepEqual(mcp.mcpServers["webde-access"].args, ["./scripts/start-mcp.mjs"]);
+  assert.ok(fs.existsSync("scripts/start-mcp.mjs"));
+});

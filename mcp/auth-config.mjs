@@ -2,8 +2,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import keytar from "keytar";
-
 export const CREDENTIAL_SERVICE = "webde-access";
 export const DEFAULT_PROFILE = "personal";
 export const DEFAULT_DEV_PROFILE = "dev";
@@ -107,18 +105,25 @@ export function getStoredProfile(profile) {
   return readProfiles().profiles[profile] || null;
 }
 
+async function loadKeytar() {
+  return (await import("keytar")).default;
+}
+
 export async function setProfilePassword(profile, password) {
   if (typeof password !== "string" || password.length === 0) {
     throw new Error("Password must not be empty.");
   }
+  const keytar = await loadKeytar();
   await keytar.setPassword(CREDENTIAL_SERVICE, credentialAccount(profile), password);
 }
 
 export async function getProfilePassword(profile) {
+  const keytar = await loadKeytar();
   return keytar.getPassword(CREDENTIAL_SERVICE, credentialAccount(profile));
 }
 
 export async function deleteProfilePassword(profile) {
+  const keytar = await loadKeytar();
   return keytar.deletePassword(CREDENTIAL_SERVICE, credentialAccount(profile));
 }
 
