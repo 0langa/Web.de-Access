@@ -1,6 +1,6 @@
 {
   "name": "webde-access",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Private full-access Web.de mailbox connector for Codex, Claude Code, and Kimi Code.",
   "author": {
     "name": "Local developer"
@@ -22,7 +22,12 @@
       "Read the latest WEB.DE email from my client and draft a reply.",
       "Send this file as an attachment from my WEB.DE account."
     ],
-    "brandColor": "#1F6FEB"
+    "brandColor": "#E7B93B",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "screenshots": [
+      "./assets/screenshot-1.png"
+    ]
   },
   "mcpServers": "./.mcp.json"
 }
