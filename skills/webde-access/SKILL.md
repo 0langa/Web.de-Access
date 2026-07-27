@@ -5,7 +5,9 @@ description: Use this skill when the user wants private Web.de mailbox access, i
 
 # Web.de Access
 
-Use this skill when the user wants to work with their Web.de mailbox from Codex.
+Use this skill when the user wants to work with their Web.de mailbox. The same
+MCP server (`../../mcp/server.mjs`, 20 tools) backs Codex, Claude Code, and
+Kimi Code — nothing is duplicated per provider.
 
 For details beyond the normal workflow, use:
 
@@ -36,8 +38,8 @@ For details beyond the normal workflow, use:
 5. Use `download_webde_attachment` for attachment files. Do not inline large attachment content in chat.
 6. Use `export_webde_message` when the user wants a raw `.eml` copy for backup or manual import.
 7. Use `create_webde_draft` when the user wants to review before sending.
-8. Use `send_webde_email`, `reply_webde_email`, or `forward_webde_email` only when the user explicitly wants mail sent.
-9. Use message mutation tools only for the requested mailbox and UID values.
+8. Use `send_webde_email`, `reply_webde_email`, or `forward_webde_email` only when the user explicitly wants mail sent — treat these the same as any other irreversible, externally-visible action: confirm the recipients, subject, and intent in chat before calling the tool, every time, even if a similar send was approved earlier in the same session.
+9. Use message mutation tools (`mark_webde_messages`, `move_webde_messages`, `delete_webde_messages`, mailbox create/rename/delete) only for the requested mailbox and UID values, and confirm before any delete or permanent-removal action.
 
 ## Mailbox Names
 
@@ -60,8 +62,8 @@ wichtig
 ## Safety
 
 - Treat this as a private mailbox connector with real account access.
-- Do not send email unless the user's request clearly asks for sending.
-- For ambiguous destructive requests, create a draft or summarize the intended action first.
+- Do not send email unless the user's request clearly asks for sending, and always state the recipients/subject back to the user before the send tool call.
+- For ambiguous destructive requests, create a draft or summarize the intended action first, then ask before proceeding.
 - Prefer moving messages to `Papierkorb` over permanent deletion unless permanent deletion is explicit.
 - When attaching local files, pass file paths through `fileAttachments`; do not read large files into chat.
 - Never read, print, or summarize `.env`, WEB.DE app-password environment variables, or OS credential

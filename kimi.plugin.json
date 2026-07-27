@@ -1,6 +1,6 @@
 {
   "name": "webde-access",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Private Web.de mailbox connector for Kimi Code through the same local MCP server used by Codex and Claude Code.",
   "keywords": [
     "webde",
@@ -21,7 +21,7 @@
     "developerName": "Local developer",
     "websiteURL": "https://github.com/0langa/Web.de-Access"
   },
-  "skills": "./claude-code/skills/",
+  "skills": "./skills/",
   "mcpServers": {
     "webde-access": {
       "command": "node",

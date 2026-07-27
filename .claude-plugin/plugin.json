@@ -1,10 +1,10 @@
 {
   "name": "webde-access",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Private full-access Web.de mailbox connector for Codex, Claude Code, and Kimi Code.",
   "author": {
     "name": "Local developer"
   },
-  "skills": "./claude-code/skills/",
+  "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }

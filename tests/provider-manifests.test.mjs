@@ -32,6 +32,27 @@ test("Codex manifest points at the Codex-specific MCP file", () => {
 // the plugin directory, so "./scripts/start-mcp.mjs" resolves into whatever repo
 // the user happens to be in and node exits with MODULE_NOT_FOUND. Only
 // ${CLAUDE_PLUGIN_ROOT} is expanded by the host to the real install path.
+// Claude Code auto-discovers skills/ at the plugin root *in addition* to the
+// directory the manifest declares. A second provider-specific skill directory
+// therefore registers the same skill twice.
+test("exactly one skill directory, shared by every provider", () => {
+  const skillFiles = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "node_modules" || e.name === ".git") continue;
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(full);
+      else if (e.name === "SKILL.md") skillFiles.push(full);
+    }
+  };
+  walk(".");
+  assert.deepEqual(skillFiles, ["./skills/webde-access/SKILL.md"]);
+
+  for (const manifest of [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "kimi.plugin.json"]) {
+    assert.equal(JSON.parse(fs.readFileSync(manifest, "utf8")).skills, "./skills/");
+  }
+});
+
 test("launcher probes the MCP SDK by manifest and keeps npm off stdout", () => {
   const launcher = fs
     .readFileSync("scripts/start-mcp.mjs", "utf8")

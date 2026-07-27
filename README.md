@@ -130,16 +130,19 @@ claude plugin marketplace add <path-to-Web.de-Access>
 claude plugin install webde-access@webde-access-local
 ```
 
-The plugin manifest declares `mcpServers` pointing at the same root-level `.mcp.json` Codex uses (no
-new server, no duplicated config) and `skills` pointing at [`claude-code/skills/webde-access/SKILL.md`](claude-code/skills/webde-access/SKILL.md),
-a Claude Code-specific skill file documenting the same 20 tools as the Codex skill plus explicit
-confirm-before-send/delete guidance matching Claude Code's own action-safety conventions. This skill
-lives outside `.claude/` deliberately — that path is reserved for project-level auto-discovery, and a
-plugin manifest declaring a skill already covered by project auto-discovery fails to load (the same
-class of conflict Claude Code reports as "Duplicate hooks file detected" for hook manifests).
+The Claude manifest declares `mcpServers` pointing at `.mcp.json` and `skills` pointing at the single
+canonical [`skills/webde-access/SKILL.md`](skills/webde-access/SKILL.md), which documents all 20 tools
+plus explicit confirm-before-send/delete guidance matching Claude Code's action-safety conventions.
 
-No code in `mcp/server.mjs` or `.mcp.json` changed for Claude Code support — it is the same server
-and config Codex uses.
+There is deliberately **one** skill directory. Claude Code auto-discovers `skills/` at the plugin root
+in addition to whatever the manifest declares, so a second provider-specific skill directory would
+register the same skill twice — doubling its always-on token cost and leaving two copies in the picker
+whose instructions can drift apart. All three providers point at `./skills/`.
+
+Claude Code launches plugin MCP servers with the *session* working directory rather than the plugin
+directory, so `.mcp.json` anchors both `cwd` and the launcher path on `${CLAUDE_PLUGIN_ROOT}`. Codex
+resolves relative paths against the plugin root already and keeps its own `.codex-mcp.json`. Both
+configs start the same `mcp/server.mjs`.
 
 ## Kimi Code
 
@@ -153,8 +156,8 @@ Install or reload the plugin from Kimi:
 /reload
 ```
 
-The Kimi manifest points at the same `mcp/server.mjs` MCP server and the stricter Claude/Kimi skill
-instructions in `claude-code/skills/webde-access/SKILL.md`. Do not switch Kimi to the `personal`
+The Kimi manifest points at the same `mcp/server.mjs` MCP server and the same canonical skill
+instructions in `skills/webde-access/SKILL.md`. Do not switch Kimi to the `personal`
 profile unless the user explicitly asks for that trust boundary change.
 
 ## Capabilities
