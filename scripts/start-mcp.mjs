@@ -9,7 +9,12 @@ const require = createRequire(import.meta.url);
 
 function dependenciesLoad() {
   try {
-    require.resolve("@modelcontextprotocol/sdk");
+    // Resolve the manifest, not the package root: @modelcontextprotocol/sdk is
+    // ESM-only ("type": "module", no "main", subpath-only "exports"), so
+    // require.resolve("@modelcontextprotocol/sdk") can never succeed and would
+    // force a reinstall on every single startup.
+    require.resolve("@modelcontextprotocol/sdk/package.json");
+    // keytar is a native addon; requiring it proves the prebuilt binary exists.
     require("keytar");
     return true;
   } catch {
@@ -24,14 +29,26 @@ function npmCommand() {
 if (!dependenciesLoad()) {
   const result = spawnSync(npmCommand(), ["ci", "--omit=dev"], {
     cwd: pluginRoot,
-    stdio: "inherit",
+    // stdout is the MCP stdio transport. Anything npm prints there corrupts the
+    // JSON-RPC stream, so installer output goes to stderr only.
+    stdio: ["ignore", "ignore", "inherit"],
     shell: false,
   });
   if (result.status !== 0) {
+    console.error(
+      "webde-access could not install its dependencies. Run `npm ci --omit=dev` in " +
+        pluginRoot +
+        " and restart.",
+    );
     process.exit(result.status ?? 1);
   }
   if (!dependenciesLoad()) {
-    console.error("webde-access dependencies were installed but still cannot be loaded.");
+    console.error(
+      "webde-access dependencies were installed but still cannot be loaded. " +
+        "keytar needs its native binary; run `npm rebuild keytar` in " +
+        pluginRoot +
+        " and restart.",
+    );
     process.exit(1);
   }
 }
