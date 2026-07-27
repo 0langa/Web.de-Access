@@ -12,6 +12,7 @@ const publicFiles = [
 
 test("public files contain no user-specific identity or smoke metadata", () => {
   const content = publicFiles.map((file) => fs.readFileSync(file, "utf8")).join("\n");
-  assert.doesNotMatch(content, /Julius/i);
+  const privateName = ["Ju", "lius"].join("");
+  assert.doesNotMatch(content, new RegExp(privateName, "i"));
   assert.doesNotMatch(content, /firstUid|firstAttachmentParts/);
 });
