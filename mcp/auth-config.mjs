@@ -6,11 +6,18 @@ export const CREDENTIAL_SERVICE = "webde-access";
 export const DEFAULT_PROFILE = "personal";
 export const DEFAULT_DEV_PROFILE = "dev";
 
-export const legacySecretNames = [
+const standardLegacySecretNames = [
   "WEBDE_PASSWORD",
   "WEBDE_APP_PASSWORD",
-  "WEBDE_APP_PASSWORD_0langa",
-  "WEBDE_APP_PASSWORD_Julius",
+];
+
+export const legacySecretNames = [
+  ...new Set([
+    ...standardLegacySecretNames,
+    ...Object.keys(process.env).filter((name) =>
+      /^WEBDE_(?:APP_)?PASSWORD(?:_|$)/i.test(name),
+    ),
+  ]),
 ];
 
 export function getConfigDir() {

@@ -63,7 +63,7 @@ Commands:
 
 Examples:
   npm run auth:login -- --profile dev
-  npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL_0langa --password-env WEBDE_APP_PASSWORD_0langa
+  npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL --password-env WEBDE_DEV_APP_PASSWORD
   npm run auth:status
 `);
 }

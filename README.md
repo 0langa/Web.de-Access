@@ -57,12 +57,12 @@ Create or update a profile interactively:
 npm run auth:login -- --profile personal
 ```
 
-For Julius' one-time migration from temporary user environment variables, import the dev and
-personal profiles without printing the app-password values:
+For one-time migration from temporary user environment variables, import profiles without
+printing app-password values:
 
 ```powershell
-npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL_0langa --password-env WEBDE_APP_PASSWORD_0langa
-npm run auth:import-env -- --profile personal --email-env WEBDE_IMPORTANT_EMAIL_Julius --fallback-email-env WEBDE_IMPORTENT_EMAIL_Julius --password-env WEBDE_APP_PASSWORD_Julius
+npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL --password-env WEBDE_DEV_APP_PASSWORD
+npm run auth:import-env -- --profile personal --email-env WEBDE_MIGRATION_EMAIL --fallback-email-env WEBDE_MIGRATION_EMAIL_FALLBACK --password-env WEBDE_MIGRATION_APP_PASSWORD
 npm run auth:status
 ```
 
@@ -72,7 +72,7 @@ If the personal email environment variable is missing or misspelled, pass it exp
 After both profiles validate, remove the temporary migration variables and old plugin `.env` files:
 
 ```powershell
-npm run auth:cleanup-env -- --env WEBDE_DEV_EMAIL_0langa --env WEBDE_APP_PASSWORD_0langa --env WEBDE_IMPORTANT_EMAIL_Julius --env WEBDE_IMPORTENT_EMAIL_Julius --env WEBDE_APP_PASSWORD_Julius --purge-plugin-envs
+npm run auth:cleanup-env -- --env WEBDE_DEV_EMAIL --env WEBDE_DEV_APP_PASSWORD --env WEBDE_MIGRATION_EMAIL --env WEBDE_MIGRATION_EMAIL_FALLBACK --env WEBDE_MIGRATION_APP_PASSWORD --purge-plugin-envs
 npm run security:scan
 ```
 

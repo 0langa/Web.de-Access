@@ -12,8 +12,8 @@ npm run auth:login -- --profile personal
 Import from temporary migration environment variables:
 
 ```powershell
-npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL_0langa --password-env WEBDE_APP_PASSWORD_0langa
-npm run auth:import-env -- --profile personal --email-env WEBDE_IMPORTANT_EMAIL_Julius --fallback-email-env WEBDE_IMPORTENT_EMAIL_Julius --password-env WEBDE_APP_PASSWORD_Julius
+npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL --password-env WEBDE_DEV_APP_PASSWORD
+npm run auth:import-env -- --profile personal --email-env WEBDE_MIGRATION_EMAIL --fallback-email-env WEBDE_MIGRATION_EMAIL_FALLBACK --password-env WEBDE_MIGRATION_APP_PASSWORD
 ```
 
 Never read, print, or copy WEB.DE app-password values. The MCP server refuses to start when legacy

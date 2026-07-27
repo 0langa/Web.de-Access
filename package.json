@@ -1,6 +1,6 @@
 {
   "name": "webde-access",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Private local MCP server for full Web.de mailbox access.",
@@ -23,10 +23,10 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "html-to-text": "^10.0.0",
-    "imapflow": "^1.0.193",
+    "imapflow": "^1.5.0",
     "keytar": "^7.9.0",
-    "mailparser": "^3.9.11",
-    "nodemailer": "^9.0.1",
+    "mailparser": "^3.9.14",
+    "nodemailer": "^9.0.3",
     "zod": "^4.1.5"
   }
 }
