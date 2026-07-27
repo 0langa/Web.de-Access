@@ -1,6 +1,6 @@
 {
   "name": "webde-access",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "private": true,
   "type": "module",
   "description": "Private local MCP server for full Web.de mailbox access.",

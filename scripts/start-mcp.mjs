@@ -22,8 +22,10 @@ function dependenciesLoad() {
   }
 }
 
+const isWindows = process.platform === "win32";
+
 function npmCommand() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
+  return isWindows ? "npm.cmd" : "npm";
 }
 
 if (!dependenciesLoad()) {
@@ -32,7 +34,10 @@ if (!dependenciesLoad()) {
     // stdout is the MCP stdio transport. Anything npm prints there corrupts the
     // JSON-RPC stream, so installer output goes to stderr only.
     stdio: ["ignore", "ignore", "inherit"],
-    shell: false,
+    // Node refuses to spawn .cmd/.bat without a shell (CVE-2024-27980), so on
+    // Windows this fails with EINVAL unless shell is enabled. The arguments are
+    // hard-coded literals, so there is nothing user-controlled to inject.
+    shell: isWindows,
   });
   if (result.status !== 0) {
     console.error(

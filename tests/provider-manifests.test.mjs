@@ -69,6 +69,11 @@ test("launcher probes the MCP SDK by manifest and keeps npm off stdout", () => {
   // stdout is the MCP stdio transport; installer output there breaks JSON-RPC.
   assert.doesNotMatch(launcher, /stdio:\s*"inherit"/);
   assert.match(launcher, /stdio:\s*\["ignore",\s*"ignore",\s*"inherit"\]/);
+
+  // Node refuses to spawn .cmd/.bat without a shell (CVE-2024-27980); on
+  // Windows a bare spawnSync("npm.cmd", ...) fails with EINVAL.
+  assert.match(launcher, /shell:\s*isWindows/);
+  assert.doesNotMatch(launcher, /shell:\s*false/);
 });
 
 test("Claude MCP entrypoint is anchored to the plugin root", () => {
