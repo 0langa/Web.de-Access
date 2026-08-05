@@ -4,10 +4,10 @@ _Last verified: 2026-08-05_
 
 ## Current source state
 
-- The latest released source tag is `v0.2.7` (`226140b`). Check local and
-  remote branch heads live before release work.
+- The latest released source tag is `v0.2.8`. Check local and remote branch
+  heads live before release work.
 - `package.json`, `package-lock.json`, and the three provider manifests use
-  version `0.2.7`.
+  version `0.2.8`.
 - The lockfile uses `@modelcontextprotocol/sdk` `^1.30.0` and scoped overrides
   for its vulnerable transitive packages. A fresh production audit reports zero
   vulnerabilities.
