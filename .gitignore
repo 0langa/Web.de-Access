@@ -2,6 +2,7 @@
 .env.*
 profiles.local.json
 .codex/
+.recall/
 node_modules/
 npm-debug.log*
 yarn-debug.log*
