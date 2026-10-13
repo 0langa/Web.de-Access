@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node ./mcp/server.mjs",
-    "check": "node --check ./mcp/server.mjs",
+    "check": "node --check ./mcp/server.mjs && node --check ./mcp/mail.mjs",
     "test": "node --test tests/*.test.mjs",
     "auth": "node ./scripts/webde-auth.mjs",
     "auth:login": "node ./scripts/webde-auth.mjs login",
