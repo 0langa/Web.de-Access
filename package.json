@@ -22,19 +22,19 @@
     "test:cold-start": "node ./scripts/test-cold-start.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "html-to-text": "^10.0.1",
     "imapflow": "^1.7.8",
     "keytar": "^7.9.0",
-    "mailparser": "^3.9.23",
-    "nodemailer": "^9.1.1",
+    "mailparser": "^3.9.38",
+    "nodemailer": "^10.1.0",
     "zod": "^4.1.5"
   },
   "overrides": {
     "@hono/node-server": "2.1.0",
-    "fast-uri": "3.1.7",
+    "fast-uri": "3.1.8",
     "hono": "4.13.7",
-    "ip-address": "10.4.0"
+    "ip-address": "10.7.4"
   },
   "allowScripts": {
     "keytar@7.9.0": true
