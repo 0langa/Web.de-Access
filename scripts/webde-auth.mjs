@@ -6,8 +6,6 @@ import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
-import { ImapFlow } from "imapflow";
-
 import {
   deleteProfilePassword,
   getProfilePassword,
@@ -20,6 +18,7 @@ import {
   setProfilePassword,
   upsertProfile,
 } from "../mcp/auth-config.mjs";
+import { withImapConnection } from "../mcp/mail.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -119,18 +118,7 @@ async function promptSecret(prompt) {
 
 async function validateProfile(profile) {
   const config = await loadRuntimeConfig({ profile, allowLegacyEnv: true });
-  const client = new ImapFlow({
-    host: config.imapHost,
-    port: config.imapPort,
-    secure: config.imapSecure,
-    auth: {
-      user: config.email,
-      pass: config.password,
-    },
-    logger: false,
-  });
-  await client.connect();
-  await client.logout().catch(() => {});
+  await withImapConnection(config, async () => {});
 }
 
 function getEnvByNames(names) {

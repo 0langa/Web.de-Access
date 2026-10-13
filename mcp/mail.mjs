@@ -13,6 +13,10 @@ export function imapClientOptions(config) {
     host: config.imapHost,
     port: config.imapPort,
     secure: config.imapSecure,
+    // Without implicit TLS, insist on STARTTLS. ImapFlow's default is
+    // opportunistic: if the server (or anyone in between) does not offer
+    // STARTTLS, it logs in with the app password in clear text.
+    doSTARTTLS: config.imapSecure ? undefined : true,
     auth: {
       user: config.email,
       pass: config.password,
