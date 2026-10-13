@@ -8,8 +8,8 @@ import { simpleParser } from "mailparser";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 import nodemailer from "nodemailer";
 
-export async function withImapConnection(config, work) {
-  const client = new ImapFlow({
+export function imapClientOptions(config) {
+  return {
     host: config.imapHost,
     port: config.imapPort,
     secure: config.imapSecure,
@@ -18,11 +18,36 @@ export async function withImapConnection(config, work) {
       pass: config.password,
     },
     logger: false,
+  };
+}
+
+export function createImapClient(config, extraOptions = {}) {
+  const client = new ImapFlow({ ...imapClientOptions(config), ...extraOptions });
+  // ImapFlow reports failures between commands (socket errors, timeouts,
+  // malformed responses) as "error" events. Unhandled, Node turns that into
+  // an uncaught exception that ends the whole MCP server; the command that
+  // was waiting on the connection rejects on its own either way.
+  client.on("error", () => {});
+  return client;
+}
+
+export async function withImapConnection(config, work, extraOptions = {}) {
+  const client = createImapClient(config, extraOptions);
+  let connectionError = null;
+  client.on("error", (error) => {
+    connectionError ??= error;
   });
 
   await client.connect();
   try {
     return await work(client, config);
+  } catch (error) {
+    // A command interrupted by a dropped connection only reports that the
+    // connection closed; keep the reason it closed.
+    if (connectionError && error instanceof Error && error !== connectionError && !error.cause) {
+      error.cause = connectionError;
+    }
+    throw error;
   } finally {
     await client.logout().catch(() => {});
   }
