@@ -272,6 +272,13 @@ export function parsedMessageTextSource(parsed) {
   return "none";
 }
 
+// ImapFlow passes the raw header text through when it cannot parse a date;
+// toISOString() would throw on it and fail the whole search.
+function isoDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
 export function messageSummary(msg) {
   return {
     seq: msg.seq,
@@ -279,8 +286,8 @@ export function messageSummary(msg) {
     subject: msg.envelope?.subject || "",
     messageId: msg.envelope?.messageId || "",
     inReplyTo: msg.envelope?.inReplyTo || "",
-    date: msg.envelope?.date ? new Date(msg.envelope.date).toISOString() : null,
-    internalDate: msg.internalDate ? new Date(msg.internalDate).toISOString() : null,
+    date: isoDate(msg.envelope?.date),
+    internalDate: isoDate(msg.internalDate),
     from: addressList(msg.envelope?.from),
     to: addressList(msg.envelope?.to),
     cc: addressList(msg.envelope?.cc),
