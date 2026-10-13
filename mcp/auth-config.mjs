@@ -98,10 +98,13 @@ export function writeProfiles(data) {
 
 export function upsertProfile(profile, config) {
   const data = readProfiles();
+  const defaults = defaultProfileConfig(profile);
+  const stored = data.profiles[profile] || {};
   data.profiles[profile] = {
-    ...defaultProfileConfig(profile),
-    ...(data.profiles[profile] || {}),
+    ...defaults,
+    ...stored,
     ...config,
+    folders: { ...defaults.folders, ...(stored.folders || {}), ...(config.folders || {}) },
     profile,
   };
   writeProfiles(data);
@@ -228,36 +231,46 @@ export async function loadRuntimeConfig(options = {}) {
   };
 }
 
+function definedOnly(values) {
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
+}
+
+// Returns only the settings present in the environment. auth:login and
+// auth:import-env also run just to replace an app password, and must not reset
+// the rest of a stored profile (folders, attachment roots, limits) to the
+// defaults; upsertProfile() fills in defaults for a new profile.
 export function profileFromNonSecretEnv(profile, email) {
-  const base = defaultProfileConfig(profile, email);
-  return {
-    ...base,
-    defaultFromName: process.env.WEBDE_DEFAULT_FROM_NAME?.trim() || base.defaultFromName,
-    folders: {
-      inbox: process.env.WEBDE_INBOX_MAILBOX?.trim() || base.folders.inbox,
-      sent: process.env.WEBDE_SENT_MAILBOX?.trim() || base.folders.sent,
-      drafts: process.env.WEBDE_DRAFTS_MAILBOX?.trim() || base.folders.drafts,
-      outbox: process.env.WEBDE_OUTBOX_MAILBOX?.trim() || base.folders.outbox,
-      trash: process.env.WEBDE_TRASH_MAILBOX?.trim() || base.folders.trash,
-      spam: process.env.WEBDE_SPAM_MAILBOX?.trim() || base.folders.spam,
-      junk: process.env.WEBDE_JUNK_MAILBOX?.trim() || base.folders.junk,
-      important: process.env.WEBDE_IMPORTANT_MAILBOX?.trim() || base.folders.important,
-    },
-    attachmentDownloadDir: process.env.WEBDE_ATTACHMENT_DOWNLOAD_DIR?.trim() || base.attachmentDownloadDir,
-    allowedAttachmentRoots: (process.env.WEBDE_ALLOWED_ATTACHMENT_ROOTS || "")
-      .split(path.delimiter)
+  const env = (name) => process.env[name]?.trim() || undefined;
+  const roots = env("WEBDE_ALLOWED_ATTACHMENT_ROOTS");
+  return definedOnly({
+    profile,
+    email,
+    defaultFromName: env("WEBDE_DEFAULT_FROM_NAME"),
+    folders: definedOnly({
+      inbox: env("WEBDE_INBOX_MAILBOX"),
+      sent: env("WEBDE_SENT_MAILBOX"),
+      drafts: env("WEBDE_DRAFTS_MAILBOX"),
+      outbox: env("WEBDE_OUTBOX_MAILBOX"),
+      trash: env("WEBDE_TRASH_MAILBOX"),
+      spam: env("WEBDE_SPAM_MAILBOX"),
+      junk: env("WEBDE_JUNK_MAILBOX"),
+      important: env("WEBDE_IMPORTANT_MAILBOX"),
+    }),
+    attachmentDownloadDir: env("WEBDE_ATTACHMENT_DOWNLOAD_DIR"),
+    allowedAttachmentRoots: roots
+      ?.split(path.delimiter)
       .map((item) => item.trim())
       .filter(Boolean),
-    saveSentCopy: parseBool(process.env.WEBDE_SAVE_SENT_COPY, base.saveSentCopy),
-    markReadOnFetch: parseBool(process.env.WEBDE_MARK_READ_ON_FETCH, base.markReadOnFetch),
-    maxFetchMessages: process.env.WEBDE_MAX_FETCH_MESSAGES?.trim() || base.maxFetchMessages,
-    maxAttachmentMb: process.env.WEBDE_MAX_ATTACHMENT_MB?.trim() || base.maxAttachmentMb,
-    maxSourceMb: process.env.WEBDE_MAX_SOURCE_MB?.trim() || base.maxSourceMb,
-    imapHost: process.env.WEBDE_IMAP_HOST?.trim() || base.imapHost,
-    imapPort: process.env.WEBDE_IMAP_PORT?.trim() || base.imapPort,
-    imapSecure: parseBool(process.env.WEBDE_IMAP_SECURE, base.imapSecure),
-    smtpHost: process.env.WEBDE_SMTP_HOST?.trim() || base.smtpHost,
-    smtpPort: process.env.WEBDE_SMTP_PORT?.trim() || base.smtpPort,
-    smtpSecure: parseBool(process.env.WEBDE_SMTP_SECURE, base.smtpSecure),
-  };
+    saveSentCopy: parseBool(process.env.WEBDE_SAVE_SENT_COPY, undefined),
+    markReadOnFetch: parseBool(process.env.WEBDE_MARK_READ_ON_FETCH, undefined),
+    maxFetchMessages: env("WEBDE_MAX_FETCH_MESSAGES"),
+    maxAttachmentMb: env("WEBDE_MAX_ATTACHMENT_MB"),
+    maxSourceMb: env("WEBDE_MAX_SOURCE_MB"),
+    imapHost: env("WEBDE_IMAP_HOST"),
+    imapPort: env("WEBDE_IMAP_PORT"),
+    imapSecure: parseBool(process.env.WEBDE_IMAP_SECURE, undefined),
+    smtpHost: env("WEBDE_SMTP_HOST"),
+    smtpPort: env("WEBDE_SMTP_PORT"),
+    smtpSecure: parseBool(process.env.WEBDE_SMTP_SECURE, undefined),
+  });
 }

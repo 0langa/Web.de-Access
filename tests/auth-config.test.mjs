@@ -13,6 +13,7 @@ import {
   readProfiles,
   resolveProfileName,
   upsertProfile,
+  writeProfiles,
 } from "../mcp/auth-config.mjs";
 
 test("profile metadata is stored outside the repo and never includes a password", () => {
@@ -33,6 +34,43 @@ test("profile metadata is stored outside the repo and never includes a password"
     } else {
       process.env.APPDATA = previousAppData;
     }
+    fs.rmSync(appData, { recursive: true, force: true });
+  }
+});
+
+test("re-running login keeps stored settings that the environment does not set", () => {
+  const appData = fs.mkdtempSync(path.join(os.tmpdir(), "webde-access-test-"));
+  const previousEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => name === "APPDATA" || name.startsWith("WEBDE_")));
+  for (const name of Object.keys(previousEnv)) {
+    delete process.env[name];
+  }
+  process.env.APPDATA = appData;
+  try {
+    upsertProfile("dev", profileFromNonSecretEnv("dev", "dev@example.com"));
+
+    // The user restricts attachments and adjusts folders and limits in profiles.json ...
+    const edited = readProfiles();
+    edited.profiles.dev.allowedAttachmentRoots = [path.join(appData, "outgoing")];
+    edited.profiles.dev.folders.sent = "Sent";
+    edited.profiles.dev.maxSourceMb = 40;
+    writeProfiles(edited);
+
+    // ... and later refreshes the app password, with one setting given through the environment.
+    process.env.WEBDE_DRAFTS_MAILBOX = "Drafts";
+    upsertProfile("dev", profileFromNonSecretEnv("dev", "dev@example.com"));
+
+    const stored = readProfiles().profiles.dev;
+    assert.deepEqual(stored.allowedAttachmentRoots, [path.join(appData, "outgoing")]);
+    assert.equal(stored.folders.sent, "Sent");
+    assert.equal(stored.folders.drafts, "Drafts");
+    assert.equal(stored.folders.trash, "Papierkorb");
+    assert.equal(stored.maxSourceMb, 40);
+    assert.equal(stored.email, "dev@example.com");
+  } finally {
+    for (const name of Object.keys(process.env).filter((key) => key === "APPDATA" || key.startsWith("WEBDE_"))) {
+      delete process.env[name];
+    }
+    Object.assign(process.env, previousEnv);
     fs.rmSync(appData, { recursive: true, force: true });
   }
 });
