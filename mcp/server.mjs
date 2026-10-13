@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -11,12 +10,13 @@ import {
   buildMessage,
   buildOutgoingAttachments,
   buildSearchObject,
-  defaultDownloadFilename,
   describeError,
-  ensureInside,
+  downloadAttachment,
+  exportMessage,
   fetchParsedMessage,
   filterIdsBySubject,
-  firstAddress,
+  formatLimit,
+  forwardMessage,
   fromAddress,
   getSmtpTransport,
   messageSummary,
@@ -24,15 +24,11 @@ import {
   parsedAddressList,
   parsedMessageText,
   parsedMessageTextSource,
-  prefixedSubject,
-  quoteOriginal,
-  replyRecipients,
-  sanitizeFilename,
+  replyToMessage,
   sendMailAndMaybeSaveSent,
   sentCopyWarning,
   setToArray,
   stringifyNumberLike,
-  uniqueFilePath,
   withImapConnection,
   withMailbox,
 } from "./mail.mjs";
@@ -340,29 +336,8 @@ server.registerTool(
     runTool(() =>
       withImapClient((client, config) =>
         withMailbox(client, mailbox, { readOnly: true }, async () => {
-          fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
-          const msg = await client.fetchOne(String(uid), { uid: true, envelope: true }, { uid: true });
-          if (!msg) {
-            throw new Error(`Message UID ${uid} was not found in ${mailbox}.`);
-          }
-
-          const { meta, content } = await client.download(String(uid), undefined, {
-            uid: true,
-            maxBytes: config.maxSourceBytes,
-          });
-          const subject = msg.envelope?.subject ? sanitizeFilename(msg.envelope.subject).slice(0, 80) : `message-${uid}`;
-          const outputPath = uniqueFilePath(config.attachmentDownloadDir, filename || `${subject}-${uid}.eml`);
-          ensureInside(config.attachmentDownloadDir, outputPath);
-          await pipeline(content, fs.createWriteStream(outputPath));
-
-          return makeTextResult(`Exported ${mailbox}/${uid} to ${outputPath}.`, {
-            mailbox,
-            uid,
-            outputPath,
-            filename: path.basename(outputPath),
-            contentType: meta.contentType || "message/rfc822",
-            expectedSize: meta.expectedSize ?? null,
-          });
+          const result = await exportMessage(client, config, { mailbox, uid, filename });
+          return makeTextResult(`Exported ${mailbox}/${uid} to ${result.outputPath}.`, result);
         }),
       ),
     ),
@@ -382,13 +357,17 @@ server.registerTool(
   async ({ mailbox, uid, includeHtml }) =>
     runTool(() =>
       withImapClient(async (client, config) => {
-        const { msg, parsed } = await fetchParsedMessage(client, mailbox, uid, config);
+        const { msg, parsed, truncated } = await fetchParsedMessage(client, mailbox, uid, config);
         const summary = messageSummary(msg);
         const text = parsedMessageText(parsed);
-        return makeTextResult(`Loaded message ${uid} from ${mailbox}: ${summary.subject || "(no subject)"}.`, {
+        const truncatedNote = truncated
+          ? ` Only the first ${formatLimit(config.maxSourceBytes)} were read (profile maxSourceMb), so the body and attachment list may be incomplete.`
+          : "";
+        return makeTextResult(`Loaded message ${uid} from ${mailbox}: ${summary.subject || "(no subject)"}.${truncatedNote}`, {
           mailbox,
           uid,
           ...summary,
+          sourceTruncated: truncated,
           parsed: {
             subject: parsed.subject || "",
             messageId: parsed.messageId || "",
@@ -434,29 +413,8 @@ server.registerTool(
     runTool(() =>
       withImapClient((client, config) =>
         withMailbox(client, mailbox, { readOnly: true }, async () => {
-          fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
-          const { meta, content } = await client.download(String(uid), part, {
-            uid: true,
-            maxBytes: config.maxAttachmentBytes,
-          });
-          const outputPath = uniqueFilePath(
-            config.attachmentDownloadDir,
-            filename || meta.filename || defaultDownloadFilename(uid, part, meta.contentType),
-          );
-          ensureInside(config.attachmentDownloadDir, outputPath);
-          await pipeline(content, fs.createWriteStream(outputPath));
-          const downloadedSize = fs.statSync(outputPath).size;
-
-          return makeTextResult(`Downloaded attachment part ${part} from ${mailbox}/${uid}.`, {
-            mailbox,
-            uid,
-            part,
-            outputPath,
-            filename: path.basename(outputPath),
-            contentType: meta.contentType || "application/octet-stream",
-            size: downloadedSize,
-            expectedSize: downloadedSize,
-          });
+          const result = await downloadAttachment(client, config, { mailbox, uid, part, filename });
+          return makeTextResult(`Downloaded attachment part ${part} from ${mailbox}/${uid}.`, result);
         }),
       ),
     ),
@@ -591,36 +549,20 @@ server.registerTool(
 
     return runTool(() =>
       withImapClient(async (client, config) => {
-        const { parsed } = await fetchParsedMessage(client, mailbox, uid, config);
-        const recipients = replyRecipients(parsed, config, replyAll);
-        if (!recipients.to.length) {
-          throw new Error("No reply recipient could be inferred from the original message.");
-        }
-
-        const references = Array.isArray(parsed.references) ? parsed.references : parsed.references ? [parsed.references] : [];
-        const messageId = parsed.messageId || "";
-        const result = await sendMailAndMaybeSaveSent(config, {
-          to: recipients.to,
-          cc: [...recipients.cc, ...(cc || [])],
-          bcc,
-          subject: prefixedSubject(parsed.subject, "Re"),
-          text: `${text}${includeOriginal ? quoteOriginal(parsed) : ""}`,
+        const result = await replyToMessage(client, config, {
+          mailbox,
+          uid,
+          text,
           html,
+          replyAll,
+          includeOriginal,
+          cc,
+          bcc,
           attachments,
           fileAttachments,
           saveSentCopy,
-          headers: {
-            ...(messageId ? { "In-Reply-To": messageId } : {}),
-            ...(references.length || messageId ? { References: [...references, messageId].filter(Boolean).join(" ") } : {}),
-          },
         });
-
-        return makeTextResult(`Reply sent for ${mailbox}/${uid}.${sentCopyWarning(result)}`, {
-          original: { mailbox, uid, subject: parsed.subject || "" },
-          to: recipients.to,
-          cc: [...recipients.cc, ...(cc || [])],
-          ...result,
-        });
+        return makeTextResult(`Reply sent for ${mailbox}/${uid}.${sentCopyWarning(result)}`, result);
       }),
     );
   },
@@ -660,39 +602,20 @@ server.registerTool(
   }) =>
     runTool(() =>
       withImapClient(async (client, config) => {
-        const { parsed } = await fetchParsedMessage(client, mailbox, uid, config);
-        const originalAttachments = includeOriginalAttachments
-          ? (parsed.attachments || []).map((attachment, index) => ({
-              filename: attachment.filename || `forwarded-attachment-${index + 1}`,
-              content: attachment.content,
-              contentType: attachment.contentType || undefined,
-            }))
-          : [];
-
-        const forwardText = `${text || ""}\n\n---------- Forwarded message ---------\nFrom: ${firstAddress(parsed.from)}\nDate: ${
-          parsed.date ? new Date(parsed.date).toISOString() : ""
-        }\nSubject: ${parsed.subject || ""}\nTo: ${parsedAddressList(parsed.to)
-          .map((address) => address.address)
-          .join(", ")}\n\n${parsedMessageText(parsed)}`;
-
-        const result = await sendMailAndMaybeSaveSent(config, {
+        const result = await forwardMessage(client, config, {
+          mailbox,
+          uid,
           to,
+          text,
+          html,
           cc,
           bcc,
-          subject: prefixedSubject(parsed.subject, "Fwd"),
-          text: forwardText,
-          html,
-          attachments: [...(attachments || []), ...originalAttachments],
+          includeOriginalAttachments,
+          attachments,
           fileAttachments,
           saveSentCopy,
         });
-
-        return makeTextResult(`Forwarded ${mailbox}/${uid} to ${to.join(", ")}.${sentCopyWarning(result)}`, {
-          original: { mailbox, uid, subject: parsed.subject || "" },
-          to,
-          includedOriginalAttachments: originalAttachments.length,
-          ...result,
-        });
+        return makeTextResult(`Forwarded ${mailbox}/${uid} to ${to.join(", ")}.${sentCopyWarning(result)}`, result);
       }),
     ),
 );

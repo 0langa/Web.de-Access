@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 
 import { htmlToText } from "html-to-text";
@@ -390,7 +391,9 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
         internalDate: true,
         size: true,
         bodyStructure: true,
-        source: { maxLength: config.maxSourceBytes },
+        // One byte over the limit tells a message that fits exactly from one
+        // that was cut off, independent of the size the server reports.
+        source: { maxLength: config.maxSourceBytes + 1 },
       },
       { uid: true },
     );
@@ -399,8 +402,12 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
       throw new Error(`Message UID ${uid} was not found in ${mailbox}.`);
     }
 
-    const parsed = await simpleParser(msg.source || Buffer.alloc(0));
-    return { msg, parsed };
+    const source = msg.source || Buffer.alloc(0);
+    // A cut-off source still parses, but its later parts and attachments are
+    // missing or incomplete.
+    const truncated = source.length > config.maxSourceBytes || Number(msg.size) > config.maxSourceBytes;
+    const parsed = await simpleParser(truncated ? source.subarray(0, config.maxSourceBytes) : source);
+    return { msg, parsed, truncated };
   });
 }
 
@@ -441,6 +448,107 @@ export function defaultDownloadFilename(uid, part, contentType) {
   return `message-${uid}-part-${part}${extension}`;
 }
 
+export function formatLimit(bytes) {
+  return bytes % (1024 * 1024) === 0 ? `${bytes / (1024 * 1024)} MB` : `${bytes} bytes`;
+}
+
+// ImapFlow ends a download at maxBytes without reporting that it did. Callers
+// request one byte more than they allow, so a file that reaches that byte was
+// cut off; it is removed instead of being returned as if it were complete.
+async function saveDownload(content, outputPath, maxBytes, tooLargeMessage) {
+  // "wx" never replaces a file that appeared after uniqueFilePath() chose the name.
+  const output = fs.createWriteStream(outputPath, { flags: "wx" });
+  let created = false;
+  output.once("open", () => {
+    created = true;
+  });
+  try {
+    await pipeline(content, output);
+    const size = fs.statSync(outputPath).size;
+    if (size > maxBytes) {
+      throw new Error(tooLargeMessage);
+    }
+    return size;
+  } catch (error) {
+    if (created) {
+      fs.rmSync(outputPath, { force: true });
+    }
+    throw error;
+  }
+}
+
+export async function exportMessage(client, config, { mailbox, uid, filename }) {
+  fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
+  const msg = await client.fetchOne(String(uid), { uid: true, envelope: true, size: true }, { uid: true });
+  if (!msg) {
+    throw new Error(`Message UID ${uid} was not found in ${mailbox}.`);
+  }
+
+  const tooLarge = `Message UID ${uid} in ${mailbox} is larger than the profile's maxSourceMb limit (${formatLimit(
+    config.maxSourceBytes,
+  )}), so it cannot be exported completely. Raise maxSourceMb in the profile to export it.`;
+  if (Number(msg.size) > config.maxSourceBytes) {
+    throw new Error(tooLarge);
+  }
+
+  const { meta, content } = await client.download(String(uid), undefined, {
+    uid: true,
+    maxBytes: config.maxSourceBytes + 1,
+  });
+  if (!content) {
+    throw new Error(`Message UID ${uid} was not found in ${mailbox}.`);
+  }
+  const subject = msg.envelope?.subject ? sanitizeFilename(msg.envelope.subject).slice(0, 80) : `message-${uid}`;
+  const outputPath = uniqueFilePath(config.attachmentDownloadDir, filename || `${subject}-${uid}.eml`);
+  ensureInside(config.attachmentDownloadDir, outputPath);
+  const size = await saveDownload(content, outputPath, config.maxSourceBytes, tooLarge);
+
+  return {
+    mailbox,
+    uid,
+    outputPath,
+    filename: path.basename(outputPath),
+    contentType: meta.contentType || "message/rfc822",
+    size,
+    expectedSize: meta.expectedSize ?? null,
+  };
+}
+
+export async function downloadAttachment(client, config, { mailbox, uid, part, filename }) {
+  fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
+  const { meta, content } = await client.download(String(uid), part, {
+    uid: true,
+    maxBytes: config.maxAttachmentBytes + 1,
+  });
+  if (!content) {
+    throw new Error(`Part ${part} of message UID ${uid} was not found in ${mailbox}.`);
+  }
+  const outputPath = uniqueFilePath(
+    config.attachmentDownloadDir,
+    filename || meta.filename || defaultDownloadFilename(uid, part, meta.contentType),
+  );
+  ensureInside(config.attachmentDownloadDir, outputPath);
+  const downloadedSize = await saveDownload(
+    content,
+    outputPath,
+    config.maxAttachmentBytes,
+    `Attachment part ${part} of message UID ${uid} is larger than the profile's maxAttachmentMb limit (${formatLimit(
+      config.maxAttachmentBytes,
+    )}). Raise maxAttachmentMb in the profile to download it.`,
+  );
+
+  return {
+    mailbox,
+    uid,
+    part,
+    outputPath,
+    filename: path.basename(outputPath),
+    contentType: meta.contentType || "application/octet-stream",
+    size: downloadedSize,
+    expectedSize: downloadedSize,
+  };
+}
+
 export function replyRecipients(parsed, config, replyAll) {
   const own = config.email.toLowerCase();
   const seen = new Set();
@@ -476,6 +584,92 @@ export function quoteOriginal(parsed) {
     .split(/\r?\n/)
     .map((line) => `> ${line}`)
     .join("\n")}`;
+}
+
+export async function replyToMessage(client, config, input, sendOptions) {
+  const { mailbox, uid, text, html, replyAll, includeOriginal, cc, bcc, attachments, fileAttachments, saveSentCopy } = input;
+  const { parsed } = await fetchParsedMessage(client, mailbox, uid, config);
+  const recipients = replyRecipients(parsed, config, replyAll);
+  if (!recipients.to.length) {
+    throw new Error("No reply recipient could be inferred from the original message.");
+  }
+
+  const references = Array.isArray(parsed.references) ? parsed.references : parsed.references ? [parsed.references] : [];
+  const messageId = parsed.messageId || "";
+  const result = await sendMailAndMaybeSaveSent(
+    config,
+    {
+      to: recipients.to,
+      cc: [...recipients.cc, ...(cc || [])],
+      bcc,
+      subject: prefixedSubject(parsed.subject, "Re"),
+      text: `${text}${includeOriginal ? quoteOriginal(parsed) : ""}`,
+      html,
+      attachments,
+      fileAttachments,
+      saveSentCopy,
+      headers: {
+        ...(messageId ? { "In-Reply-To": messageId } : {}),
+        ...(references.length || messageId ? { References: [...references, messageId].filter(Boolean).join(" ") } : {}),
+      },
+    },
+    sendOptions,
+  );
+
+  return {
+    original: { mailbox, uid, subject: parsed.subject || "" },
+    to: recipients.to,
+    cc: [...recipients.cc, ...(cc || [])],
+    ...result,
+  };
+}
+
+export async function forwardMessage(client, config, input, sendOptions) {
+  const { mailbox, uid, to, text, html, cc, bcc, includeOriginalAttachments, attachments, fileAttachments, saveSentCopy } = input;
+  const { parsed, truncated } = await fetchParsedMessage(client, mailbox, uid, config);
+  if (includeOriginalAttachments && truncated) {
+    throw new Error(
+      `Message UID ${uid} in ${mailbox} is larger than the profile's maxSourceMb limit (${formatLimit(
+        config.maxSourceBytes,
+      )}), so its attachments cannot be forwarded intact. Raise maxSourceMb in the profile, or forward it without includeOriginalAttachments.`,
+    );
+  }
+  const originalAttachments = includeOriginalAttachments
+    ? (parsed.attachments || []).map((attachment, index) => ({
+        filename: attachment.filename || `forwarded-attachment-${index + 1}`,
+        content: attachment.content,
+        contentType: attachment.contentType || undefined,
+      }))
+    : [];
+
+  const forwardText = `${text || ""}\n\n---------- Forwarded message ---------\nFrom: ${firstAddress(parsed.from)}\nDate: ${
+    parsed.date ? new Date(parsed.date).toISOString() : ""
+  }\nSubject: ${parsed.subject || ""}\nTo: ${parsedAddressList(parsed.to)
+    .map((address) => address.address)
+    .join(", ")}\n\n${parsedMessageText(parsed)}`;
+
+  const result = await sendMailAndMaybeSaveSent(
+    config,
+    {
+      to,
+      cc,
+      bcc,
+      subject: prefixedSubject(parsed.subject, "Fwd"),
+      text: forwardText,
+      html,
+      attachments: [...(attachments || []), ...originalAttachments],
+      fileAttachments,
+      saveSentCopy,
+    },
+    sendOptions,
+  );
+
+  return {
+    original: { mailbox, uid, subject: parsed.subject || "" },
+    to,
+    includedOriginalAttachments: originalAttachments.length,
+    ...result,
+  };
 }
 
 export async function sendMailAndMaybeSaveSent(config, message, { transport = getSmtpTransport(config), imapOptions } = {}) {
