@@ -586,6 +586,32 @@ export function quoteOriginal(parsed) {
     .join("\n")}`;
 }
 
+const htmlEntities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => htmlEntities[char]);
+}
+
+function textToHtml(value) {
+  return escapeHtml(value).replace(/\r?\n/g, "<br>\n");
+}
+
+// Mail clients show the HTML part of a multipart/alternative message, so a
+// quote or forwarded message that exists only in the text part never reaches
+// most recipients. Add it before </body> when the caller sent a full document.
+function appendToHtml(html, addition) {
+  const bodyEnd = html.search(/<\/body\s*>/i);
+  return bodyEnd < 0 ? `${html}${addition}` : `${html.slice(0, bodyEnd)}${addition}${html.slice(bodyEnd)}`;
+}
+
+function quoteOriginalHtml(parsed) {
+  const from = firstAddress(parsed.from) || "unknown sender";
+  const date = parsed.date ? new Date(parsed.date).toISOString() : "unknown date";
+  return `<br>\n<br>\n<div>On ${escapeHtml(date)}, ${escapeHtml(from)} wrote:</div>\n<blockquote style="margin:0 0 0 0.8ex;border-left:1px solid #ccc;padding-left:1ex">${textToHtml(
+    parsedMessageText(parsed),
+  )}</blockquote>`;
+}
+
 export async function replyToMessage(client, config, input, sendOptions) {
   const { mailbox, uid, text, html, replyAll, includeOriginal, cc, bcc, attachments, fileAttachments, saveSentCopy } = input;
   const { parsed } = await fetchParsedMessage(client, mailbox, uid, config);
@@ -604,7 +630,7 @@ export async function replyToMessage(client, config, input, sendOptions) {
       bcc,
       subject: prefixedSubject(parsed.subject, "Re"),
       text: `${text}${includeOriginal ? quoteOriginal(parsed) : ""}`,
-      html,
+      html: html && includeOriginal ? appendToHtml(html, quoteOriginalHtml(parsed)) : html,
       attachments,
       fileAttachments,
       saveSentCopy,
@@ -642,7 +668,7 @@ export async function forwardMessage(client, config, input, sendOptions) {
       }))
     : [];
 
-  const forwardText = `${text || ""}\n\n---------- Forwarded message ---------\nFrom: ${firstAddress(parsed.from)}\nDate: ${
+  const forwardedBlock = `---------- Forwarded message ---------\nFrom: ${firstAddress(parsed.from)}\nDate: ${
     parsed.date ? new Date(parsed.date).toISOString() : ""
   }\nSubject: ${parsed.subject || ""}\nTo: ${parsedAddressList(parsed.to)
     .map((address) => address.address)
@@ -655,8 +681,8 @@ export async function forwardMessage(client, config, input, sendOptions) {
       cc,
       bcc,
       subject: prefixedSubject(parsed.subject, "Fwd"),
-      text: forwardText,
-      html,
+      text: `${text || ""}\n\n${forwardedBlock}`,
+      html: html ? appendToHtml(html, `<br>\n<br>\n${textToHtml(forwardedBlock)}`) : html,
       attachments: [...(attachments || []), ...originalAttachments],
       fileAttachments,
       saveSentCopy,
