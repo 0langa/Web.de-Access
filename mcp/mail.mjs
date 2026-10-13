@@ -478,9 +478,8 @@ export function quoteOriginal(parsed) {
     .join("\n")}`;
 }
 
-export async function sendMailAndMaybeSaveSent(config, message) {
+export async function sendMailAndMaybeSaveSent(config, message, { transport = getSmtpTransport(config), imapOptions } = {}) {
   const attachments = buildOutgoingAttachments(message.attachments, message.fileAttachments, config);
-  const transport = getSmtpTransport(config);
   const messageId = `<${globalThis.crypto.randomUUID()}@web.de>`;
   const mail = {
     from: fromAddress(config),
@@ -497,11 +496,29 @@ export async function sendMailAndMaybeSaveSent(config, message) {
   };
 
   const result = await transport.sendMail(mail);
-  let sentAppend = null;
+  let sentCopy = null;
 
   if (message.saveSentCopy ?? config.saveSentCopy) {
-    const raw = await buildMessage({ ...mail, keepBcc: true });
-    sentAppend = await withImapConnection(config, (client) => client.append(config.folders.sent, raw, ["\\Seen"]));
+    // The message has been handed to SMTP at this point. Reporting a failed
+    // Sent copy as a failed send would invite a retry that sends it twice.
+    try {
+      const raw = await buildMessage({ ...mail, keepBcc: true });
+      const appended = await withImapConnection(
+        config,
+        (client) => client.append(config.folders.sent, raw, ["\\Seen"]),
+        imapOptions,
+      );
+      if (!appended) {
+        throw new Error("WEB.DE did not confirm the append request.");
+      }
+      sentCopy = {
+        mailbox: config.folders.sent,
+        uid: stringifyNumberLike(appended.uid),
+        uidValidity: stringifyNumberLike(appended.uidValidity),
+      };
+    } catch (error) {
+      sentCopy = { mailbox: config.folders.sent, uid: null, uidValidity: null, error: describeError(error) };
+    }
   }
 
   return {
@@ -509,12 +526,14 @@ export async function sendMailAndMaybeSaveSent(config, message) {
     accepted: result.accepted ?? [],
     rejected: result.rejected ?? [],
     response: result.response ?? null,
-    sentCopy: sentAppend
-      ? {
-          mailbox: config.folders.sent,
-          uid: stringifyNumberLike(sentAppend.uid),
-          uidValidity: stringifyNumberLike(sentAppend.uidValidity),
-        }
-      : null,
+    sentCopy,
   };
+}
+
+// Appended to the tool's text result so a caller cannot mistake a missing
+// Sent copy for a failed send.
+export function sentCopyWarning(result) {
+  return result.sentCopy?.error
+    ? ` The message was sent, but its copy could not be saved to ${result.sentCopy.mailbox}: ${result.sentCopy.error}`
+    : "";
 }

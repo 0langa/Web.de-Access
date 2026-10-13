@@ -29,6 +29,7 @@ import {
   replyRecipients,
   sanitizeFilename,
   sendMailAndMaybeSaveSent,
+  sentCopyWarning,
   setToArray,
   stringifyNumberLike,
   uniqueFilePath,
@@ -559,7 +560,7 @@ server.registerTool(
         saveSentCopy,
       });
 
-      return makeTextResult(`Email sent to ${to.join(", ")} from ${config.email}.`, result);
+      return makeTextResult(`Email sent to ${to.join(", ")} from ${config.email}.${sentCopyWarning(result)}`, result);
     });
   },
 );
@@ -614,7 +615,7 @@ server.registerTool(
           },
         });
 
-        return makeTextResult(`Reply sent for ${mailbox}/${uid}.`, {
+        return makeTextResult(`Reply sent for ${mailbox}/${uid}.${sentCopyWarning(result)}`, {
           original: { mailbox, uid, subject: parsed.subject || "" },
           to: recipients.to,
           cc: [...recipients.cc, ...(cc || [])],
@@ -686,7 +687,7 @@ server.registerTool(
           saveSentCopy,
         });
 
-        return makeTextResult(`Forwarded ${mailbox}/${uid} to ${to.join(", ")}.`, {
+        return makeTextResult(`Forwarded ${mailbox}/${uid} to ${to.join(", ")}.${sentCopyWarning(result)}`, {
           original: { mailbox, uid, subject: parsed.subject || "" },
           to,
           includedOriginalAttachments: originalAttachments.length,
