@@ -339,6 +339,27 @@ function defaultPartFilename(node) {
   return `part-${node.part}${extension}`;
 }
 
+// IMAP SEARCH compares whole days. ImapFlow parses a date string with
+// new Date() and silently drops a criterion it cannot parse, which turns a
+// filtered search into one over every message. Only YYYY-MM-DD is accepted:
+// it parses as UTC midnight, the day ImapFlow sends, while other formats are
+// read in local time and can move the search by a day.
+export function isImapSearchDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+export function isUidSet(value) {
+  return value.split(",").every((range) => /^(\d+|\*)(:(\d+|\*))?$/.test(range));
+}
+
+export function isBodyPartNumber(value) {
+  return /^\d+(\.\d+)*$/.test(value);
+}
+
 export function buildSearchObject(input, options = {}) {
   const omit = new Set(options.omit || []);
   const query = {};

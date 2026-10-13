@@ -19,6 +19,9 @@ import {
   forwardMessage,
   fromAddress,
   getSmtpTransport,
+  isBodyPartNumber,
+  isImapSearchDate,
+  isUidSet,
   messageSummary,
   normalizeLimit,
   parsedAddressList,
@@ -102,6 +105,12 @@ const optionalEmailListSchema = z.array(z.string().email()).optional();
 const mailboxSchema = z.string().min(1);
 const uidSchema = z.number().int().positive();
 const uidListSchema = z.array(uidSchema).min(1).max(100);
+const searchDateSchema = (meaning) =>
+  z
+    .string()
+    .refine(isImapSearchDate, "Use a calendar date in YYYY-MM-DD form, for example 2026-10-13.")
+    .optional()
+    .describe(`${meaning} Calendar date in YYYY-MM-DD form; IMAP compares whole days.`);
 const attachmentSchema = z
   .array(
     z.object({
@@ -270,10 +279,14 @@ server.registerTool(
       to: z.string().optional(),
       cc: z.string().optional(),
       body: z.string().optional(),
-      since: z.string().optional(),
-      before: z.string().optional(),
-      on: z.string().optional(),
-      uid: z.string().optional(),
+      since: searchDateSchema("Messages received on or after this day."),
+      before: searchDateSchema("Messages received before this day."),
+      on: searchDateSchema("Messages received on this day."),
+      uid: z
+        .string()
+        .refine(isUidSet, "Use an IMAP UID set such as 42, 40:50, 3,7,9 or 1:*.")
+        .optional()
+        .describe("IMAP UID set such as 42, 40:50, 3,7,9 or 1:*."),
       unseen: z.boolean().optional(),
       seen: z.boolean().optional(),
       flagged: z.boolean().optional(),
@@ -405,7 +418,10 @@ server.registerTool(
     inputSchema: {
       mailbox: mailboxSchema,
       uid: uidSchema,
-      part: z.string().min(1),
+      part: z
+        .string()
+        .refine(isBodyPartNumber, "Use a MIME part number such as 2 or 1.2 from the message's attachments list.")
+        .describe("MIME part number such as 2 or 1.2, as listed in the message's attachments."),
       filename: z.string().min(1).optional(),
     },
   },
