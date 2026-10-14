@@ -26,6 +26,36 @@ test("IMAP without implicit TLS refuses to log in when STARTTLS is missing", { t
   }
 });
 
+test("UTF-8 folder names travel as modified UTF-7 in both directions", { timeout: 15000 }, async () => {
+  const imap = await startFakeImapServer({
+    onCommand: ({ tag, command, args, write }) => {
+      if (command === "LIST" && args !== '"" ""') {
+        write(`* LIST (\\HasNoChildren \\Drafts) "/" "Entw&APw-rfe"\r\n* LIST (\\HasNoChildren) "/" INBOX\r\n${tag} OK LIST completed\r\n`);
+        return true;
+      }
+      return false;
+    },
+  });
+  try {
+    const config = fakeConfig({ imapPort: imap.port });
+    const paths = await withImapConnection(
+      config,
+      async (client) => {
+        const mailboxes = await client.list();
+        await client.mailboxOpen("Entwürfe", { readOnly: true });
+        return mailboxes.map((mailbox) => mailbox.path);
+      },
+      plainText,
+    );
+
+    assert.ok(paths.includes("Entwürfe"));
+    const examine = imap.commands.find((entry) => entry.command === "EXAMINE");
+    assert.match(examine.args, /^"?Entw&APw-rfe"?$/);
+  } finally {
+    await imap.close();
+  }
+});
+
 test("a connection failure between commands fails the tool call instead of crashing", { timeout: 15000 }, async () => {
   const imap = await startFakeImapServer({
     onCommand: ({ command, write }) => {
