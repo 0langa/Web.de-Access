@@ -452,6 +452,13 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
       throw new Error(`Message UID ${uid} was not found in ${mailbox}.`);
     }
 
+    // ImapFlow always fetches with BODY.PEEK, so reading alone never sets
+    // \Seen; markReadOnFetch has to set it explicitly.
+    if (config.markReadOnFetch) {
+      await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true });
+      msg.flags = new Set([...(msg.flags || []), "\\Seen"]);
+    }
+
     const source = msg.source || Buffer.alloc(0);
     // A cut-off source still parses, but its later parts and attachments are
     // missing or incomplete.
