@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertUnprotectedMailbox, createImapClient, deleteMessages } from "../mcp/mail.mjs";
+import { assertUnprotectedMailbox, createImapClient, deleteMessages, markMessages, withMailbox } from "../mcp/mail.mjs";
 import { fakeConfig, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
 test("system folders and the folders the profile uses cannot be deleted or renamed", () => {
@@ -66,4 +66,66 @@ test("permanent delete is refused when the server could only expunge the whole m
   assert.match(error.message, /does not support UIDPLUS/);
   assert.ok(!commands.includes("UID STORE"), "no message may be flagged");
   assert.ok(!commands.includes("EXPUNGE"));
+});
+
+// Like any IMAP server, this one expunges every message flagged \Deleted when
+// a mailbox opened read-write (SELECT) is closed with CLOSE (RFC 3501 6.4.2).
+// UID 8 stands for a message another mail client only flagged \Deleted, for
+// example Outlook's "mark for deletion" before a purge.
+async function withOtherClientsDeletedMessage(capabilities, work) {
+  const expunged = [];
+  let readWrite = false;
+  const imap = await startFakeImapServer({
+    capabilities,
+    onCommand: ({ tag, command, write }) => {
+      if (command === "SELECT" || command === "EXAMINE") {
+        readWrite = command === "SELECT";
+        return false;
+      }
+      if (command === "CLOSE") {
+        if (readWrite) {
+          expunged.push(8);
+        }
+        write(`${tag} OK CLOSE completed\r\n`);
+        return true;
+      }
+      if (command === "UID STORE" || command === "UID MOVE") {
+        write(`${tag} OK completed\r\n`);
+        return true;
+      }
+      return false;
+    },
+  });
+  const config = fakeConfig({ imapPort: imap.port });
+  const client = createImapClient(config, { doSTARTTLS: false });
+  try {
+    await client.connect();
+    await work(client, config).catch(() => {});
+    return expunged;
+  } finally {
+    await client.logout().catch(() => {});
+    await imap.close();
+  }
+}
+
+test("tool calls never expunge messages that another mail client only flagged \Deleted", { timeout: 15000 }, async () => {
+  const calls = {
+    "marking a message as read": [
+      "IMAP4rev1 UIDPLUS MOVE",
+      (client) => withMailbox(client, "INBOX", { readOnly: false }, () => markMessages(client, { mailbox: "INBOX", uids: [7], action: "read" })),
+    ],
+    "moving a message to the trash": [
+      "IMAP4rev1 UIDPLUS MOVE",
+      (client, config) =>
+        withMailbox(client, "INBOX", { readOnly: false }, () => deleteMessages(client, config, { mailbox: "INBOX", uids: [7], permanent: false })),
+    ],
+    "a permanent delete refused for lack of UIDPLUS": [
+      "IMAP4rev1",
+      (client, config) =>
+        withMailbox(client, "INBOX", { readOnly: false }, () => deleteMessages(client, config, { mailbox: "INBOX", uids: [7], permanent: true })),
+    ],
+  };
+  for (const [name, [capabilities, work]] of Object.entries(calls)) {
+    assert.deepEqual(await withOtherClientsDeletedMessage(capabilities, work), [], name);
+  }
 });

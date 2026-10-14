@@ -115,7 +115,14 @@ export async function withMailbox(client, mailbox, options, work) {
   try {
     return await work();
   } finally {
-    await client.mailboxClose().catch(() => {});
+    // CLOSE on a mailbox opened read-write permanently removes every message
+    // flagged \Deleted, also ones other mail clients only marked (RFC 3501
+    // 6.4.2): a plain mailbox-wide expunge after every mark, move or delete.
+    // ImapFlow has no UNSELECT, so such a mailbox stays selected; the next
+    // SELECT, EXAMINE or LOGOUT closes it without expunging anything.
+    if (options?.readOnly) {
+      await client.mailboxClose().catch(() => {});
+    }
   }
 }
 
