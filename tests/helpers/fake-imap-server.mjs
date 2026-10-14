@@ -1,10 +1,18 @@
 import net from "node:net";
 
 // A scripted IMAP server for offline tests. It speaks just enough RFC 3501 for
-// ImapFlow to log in over plain TCP on 127.0.0.1 and open a mailbox. Every
-// other command goes to the test's `onCommand` handler. It stores no mail and
-// never contacts a real server.
-export async function startFakeImapServer({ capabilities = "IMAP4rev1 UIDPLUS", onCommand } = {}) {
+// ImapFlow to log in over plain TCP on 127.0.0.1, list folders and open a
+// mailbox. Every other command goes to the test's `onCommand` handler. It
+// stores no mail and never contacts a real server.
+//
+// `mailboxes` is what LIST reports, one [path, ...attributes] entry per folder
+// with the path in its wire form (modified UTF-7). A server with SPECIAL-USE
+// (RFC 6154) lists its Sent folder as ["Sent", "\\HasNoChildren", "\\Sent"].
+export async function startFakeImapServer({
+  capabilities = "IMAP4rev1 UIDPLUS",
+  mailboxes = [["INBOX", "\\HasNoChildren"]],
+  onCommand,
+} = {}) {
   const commands = [];
   const sockets = new Set();
 
@@ -12,13 +20,16 @@ export async function startFakeImapServer({ capabilities = "IMAP4rev1 UIDPLUS", 
     CAPABILITY: ({ tag, write }) => write(`* CAPABILITY ${capabilities}\r\n${tag} OK CAPABILITY completed\r\n`),
     LOGIN: ({ tag, write }) => write(`${tag} OK [CAPABILITY ${capabilities}] LOGIN completed\r\n`),
     LIST: ({ tag, args, write }) => {
-      // Only INBOX exists unless a test lists more folders itself.
-      const pattern = /"([^"]*)"$/.exec(args)?.[1] ?? args.split(" ").pop();
+      const pattern = listPattern(args);
       let listing = "";
       if (pattern === "") {
         listing = '* LIST (\\Noselect) "/" ""\r\n';
-      } else if (["*", "%", "INBOX"].includes(pattern.toUpperCase())) {
-        listing = '* LIST (\\HasNoChildren) "/" "INBOX"\r\n';
+      } else {
+        for (const [path, ...attributes] of mailboxes) {
+          if (matchesListPattern(path, pattern)) {
+            listing += `* LIST (${attributes.join(" ")}) "/" "${path}"\r\n`;
+          }
+        }
       }
       write(`${listing}${tag} OK LIST completed\r\n`);
     },
@@ -122,6 +133,25 @@ export async function startFakeImapServer({ capabilities = "IMAP4rev1 UIDPLUS", 
       await new Promise((resolve) => server.close(resolve));
     },
   };
+}
+
+// LIST [(selection options)] reference pattern [RETURN (return options)]
+function listPattern(args) {
+  const tokens = [...args.matchAll(/\([^)]*\)|"((?:[^"\\]|\\.)*)"|[^\s()]+/g)];
+  const pattern = (tokens[0]?.[0].startsWith("(") ? tokens.slice(1) : tokens)[1];
+  if (!pattern) {
+    return "";
+  }
+  return pattern[1] === undefined ? pattern[0] : pattern[1].replace(/\\(.)/g, "$1");
+}
+
+// "*" also matches across the "/" delimiter, "%" only within one level.
+// INBOX matches in any case.
+function matchesListPattern(path, pattern) {
+  const source = [...pattern]
+    .map((char) => (char === "*" ? ".*" : char === "%" ? "[^/]*" : char.replace(/[.+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${source}$`, path.toUpperCase() === "INBOX" ? "i" : "").test(path);
 }
 
 function selectedState() {
