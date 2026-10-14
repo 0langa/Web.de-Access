@@ -26,7 +26,7 @@ Message mutation tools:
 - `mark_webde_messages`: read, unread, star, or unstar by UID.
 - `move_webde_messages`: move UIDs to another mailbox.
 - `copy_webde_messages`: copy UIDs to another mailbox.
-- `delete_webde_messages`: move to trash by default, or permanently delete when explicit.
+- `delete_webde_messages`: move to trash by default, or permanently delete when explicit. Permanent deletion needs the IMAP UIDPLUS extension (WEB.DE has it) so that only the given UIDs are expunged; servers without it are refused.
 
 Mailbox mutation tools:
 
