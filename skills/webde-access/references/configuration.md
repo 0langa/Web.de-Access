@@ -64,6 +64,11 @@ Local file limits and defaults:
 }
 ```
 
+The MCP server reads these settings only from the profile. `npm run auth:login` and
+`npm run auth:import-env` copy optional `WEBDE_*` variables (for example `WEBDE_SENT_MAILBOX` or
+`WEBDE_ALLOWED_ATTACHMENT_ROOTS`) into the profile when they are set and keep every other stored
+setting. Setting such a variable for a running server has no effect.
+
 WEB.DE setup requirements:
 
 - POP3/IMAP access must be enabled in WEB.DE settings.
