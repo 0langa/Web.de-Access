@@ -379,6 +379,26 @@ export function buildSearchObject(input, options = {}) {
   return Object.keys(query).length ? query : { all: true };
 }
 
+// Collapses consecutive UIDs into IMAP ranges ("1:500,502").
+export function packUidSet(uids) {
+  const sorted = [...new Set(uids)].sort((a, b) => a - b);
+  const ranges = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const start = sorted[index];
+    while (sorted[index + 1] === sorted[index] + 1) {
+      index += 1;
+    }
+    ranges.push(start === sorted[index] ? String(start) : `${start}:${sorted[index]}`);
+  }
+  return ranges.join(",");
+}
+
+// A subject search fetches the envelope of every candidate, for a subject-only
+// search that is the whole mailbox. ImapFlow sends a UID array as one
+// comma-separated list, so batch and pack the UIDs to keep each command line
+// within the ~8000 octets RFC 2683 asks servers to accept.
+const SUBJECT_FETCH_BATCH = 500;
+
 export async function filterIdsBySubject(client, ids, subject) {
   if (!subject || !ids.length) {
     return ids;
@@ -386,16 +406,18 @@ export async function filterIdsBySubject(client, ids, subject) {
 
   const needle = subject.toLocaleLowerCase();
   const matched = [];
-  for await (const msg of client.fetch(
-    ids,
-    {
-      uid: true,
-      envelope: true,
-    },
-    { uid: true },
-  )) {
-    if ((msg.envelope?.subject || "").toLocaleLowerCase().includes(needle)) {
-      matched.push(msg.uid);
+  for (let start = 0; start < ids.length; start += SUBJECT_FETCH_BATCH) {
+    for await (const msg of client.fetch(
+      packUidSet(ids.slice(start, start + SUBJECT_FETCH_BATCH)),
+      {
+        uid: true,
+        envelope: true,
+      },
+      { uid: true },
+    )) {
+      if ((msg.envelope?.subject || "").toLocaleLowerCase().includes(needle)) {
+        matched.push(msg.uid);
+      }
     }
   }
   return matched;
