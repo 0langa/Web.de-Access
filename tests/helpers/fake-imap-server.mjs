@@ -11,8 +11,17 @@ export async function startFakeImapServer({ capabilities = "IMAP4rev1 UIDPLUS", 
   const defaults = {
     CAPABILITY: ({ tag, write }) => write(`* CAPABILITY ${capabilities}\r\n${tag} OK CAPABILITY completed\r\n`),
     LOGIN: ({ tag, write }) => write(`${tag} OK [CAPABILITY ${capabilities}] LOGIN completed\r\n`),
-    LIST: ({ tag, args, write }) =>
-      write(`${args === '"" ""' ? '* LIST (\\Noselect) "/" ""' : '* LIST (\\HasNoChildren) "/" "INBOX"'}\r\n${tag} OK LIST completed\r\n`),
+    LIST: ({ tag, args, write }) => {
+      // Only INBOX exists unless a test lists more folders itself.
+      const pattern = /"([^"]*)"$/.exec(args)?.[1] ?? args.split(" ").pop();
+      let listing = "";
+      if (pattern === "") {
+        listing = '* LIST (\\Noselect) "/" ""\r\n';
+      } else if (["*", "%", "INBOX"].includes(pattern.toUpperCase())) {
+        listing = '* LIST (\\HasNoChildren) "/" "INBOX"\r\n';
+      }
+      write(`${listing}${tag} OK LIST completed\r\n`);
+    },
     SELECT: ({ tag, write }) => write(`${selectedState()}${tag} OK [READ-WRITE] SELECT completed\r\n`),
     EXAMINE: ({ tag, write }) => write(`${selectedState()}${tag} OK [READ-ONLY] EXAMINE completed\r\n`),
     CLOSE: ({ tag, write }) => write(`${tag} OK CLOSE completed\r\n`),

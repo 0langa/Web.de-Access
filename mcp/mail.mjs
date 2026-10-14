@@ -58,6 +58,58 @@ export async function withImapConnection(config, work, extraOptions = {}) {
   }
 }
 
+export async function checkConnection(client, config, { transport = getSmtpTransport(config) } = {}) {
+  const mailboxes = await client.list();
+  const folderChecks = {};
+
+  for (const [key, mailbox] of Object.entries(config.folders)) {
+    try {
+      const status = await client.status(mailbox, {
+        messages: true,
+        unseen: true,
+        uidNext: true,
+        uidValidity: true,
+      });
+      // ImapFlow returns false, not an error, when the server refuses STATUS
+      // for a folder that LIST still shows.
+      if (!status) {
+        throw new Error(`WEB.DE refused the status request for ${mailbox}.`);
+      }
+      folderChecks[key] = {
+        mailbox,
+        ok: true,
+        messages: stringifyNumberLike(status.messages),
+        unseen: stringifyNumberLike(status.unseen),
+        uidNext: stringifyNumberLike(status.uidNext),
+        uidValidity: stringifyNumberLike(status.uidValidity),
+      };
+    } catch (error) {
+      folderChecks[key] = { mailbox, ok: false, error: describeError(error) };
+    }
+  }
+
+  try {
+    await transport.verify();
+  } catch (error) {
+    // Both libraries report timeouts and refused logins alike; say which side failed.
+    throw new Error(
+      `IMAP works, but the SMTP check at ${config.smtpHost}:${config.smtpPort} failed: ${describeError(error)}`,
+    );
+  }
+
+  return {
+    email: config.email,
+    imapHost: config.imapHost,
+    imapPort: config.imapPort,
+    imapSecure: config.imapSecure,
+    smtpHost: config.smtpHost,
+    smtpPort: config.smtpPort,
+    smtpSecure: config.smtpSecure,
+    folders: folderChecks,
+    availableMailboxes: mailboxes.map((mailbox) => mailbox.path),
+  };
+}
+
 export async function withMailbox(client, mailbox, options, work) {
   await client.mailboxOpen(mailbox, options);
   try {

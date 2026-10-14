@@ -11,6 +11,7 @@ import {
   buildMessage,
   buildOutgoingAttachments,
   buildSearchObject,
+  checkConnection,
   deleteMessages,
   describeError,
   downloadAttachment,
@@ -20,7 +21,6 @@ import {
   formatLimit,
   forwardMessage,
   fromAddress,
-  getSmtpTransport,
   isBodyPartNumber,
   isImapSearchDate,
   isUidSet,
@@ -142,46 +142,16 @@ server.registerTool(
   async () =>
     runTool(() =>
       withImapClient(async (client, config) => {
-        const mailboxes = await client.list();
-        const folderChecks = {};
-
-        for (const [key, mailbox] of Object.entries(config.folders)) {
-          try {
-            const status = await client.status(mailbox, {
-              messages: true,
-              unseen: true,
-              uidNext: true,
-              uidValidity: true,
-            });
-            folderChecks[key] = {
-              mailbox,
-              ok: true,
-              messages: stringifyNumberLike(status.messages),
-              unseen: stringifyNumberLike(status.unseen),
-              uidNext: stringifyNumberLike(status.uidNext),
-              uidValidity: stringifyNumberLike(status.uidValidity),
-            };
-          } catch (error) {
-            folderChecks[key] = { mailbox, ok: false, error: describeError(error) };
-          }
-        }
-
-        const transport = getSmtpTransport(config);
-        await transport.verify();
-
+        const result = await checkConnection(client, config);
+        const failedFolders = Object.entries(result.folders)
+          .filter(([, check]) => !check.ok)
+          .map(([key, check]) => `${key} (${check.mailbox})`);
+        const folderNote = failedFolders.length
+          ? ` These configured folders could not be opened: ${failedFolders.join(", ")}. Check their exact names with list_webde_mailboxes and update the profile.`
+          : "";
         return makeTextResult(
-          `Connected to ${config.email}. IMAP verified at ${config.imapHost}:${config.imapPort}. SMTP verified at ${config.smtpHost}:${config.smtpPort}.`,
-          {
-            email: config.email,
-            imapHost: config.imapHost,
-            imapPort: config.imapPort,
-            imapSecure: config.imapSecure,
-            smtpHost: config.smtpHost,
-            smtpPort: config.smtpPort,
-            smtpSecure: config.smtpSecure,
-            folders: folderChecks,
-            availableMailboxes: mailboxes.map((mailbox) => mailbox.path),
-          },
+          `Connected to ${config.email}. IMAP verified at ${config.imapHost}:${config.imapPort}. SMTP verified at ${config.smtpHost}:${config.smtpPort}.${folderNote}`,
+          result,
         );
       }),
     ),
@@ -233,6 +203,9 @@ server.registerTool(
           uidValidity: true,
           highestModseq: true,
         });
+        if (!status) {
+          throw new Error(`WEB.DE refused the status request for ${mailbox}.`);
+        }
 
         return makeTextResult(`Status loaded for ${mailbox}.`, {
           mailbox,
