@@ -439,6 +439,39 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
   });
 }
 
+// UID EXPUNGE comes with UIDPLUS, which IMAP4rev2 includes (same test as ImapFlow).
+function canExpungeByUid(client) {
+  return (
+    client.capabilities.has("UIDPLUS") ||
+    client.enabled.has("IMAP4REV2") ||
+    (client.capabilities.has("IMAP4rev2") && !client.capabilities.has("IMAP4rev1"))
+  );
+}
+
+export async function deleteMessages(client, config, { mailbox, uids, permanent }) {
+  if (permanent) {
+    // Without UID EXPUNGE, ImapFlow falls back to a plain EXPUNGE, which
+    // permanently removes every message flagged \Deleted in the mailbox, also
+    // ones other mail clients only marked, not just these UIDs.
+    if (!canExpungeByUid(client)) {
+      throw new Error(
+        `Refusing to delete permanently: the IMAP server does not support UIDPLUS, so the expunge would also remove other messages marked as deleted in ${mailbox}. Move the messages to ${config.folders.trash} instead.`,
+      );
+    }
+    const ok = await client.messageDelete(uids, { uid: true });
+    return { mailbox, uids, permanent: true, ok };
+  }
+
+  const result = await client.messageMove(uids, config.folders.trash, { uid: true });
+  return {
+    mailbox,
+    trashMailbox: config.folders.trash,
+    uids,
+    permanent: false,
+    uidMap: result?.uidMap ? Object.fromEntries(result.uidMap) : null,
+  };
+}
+
 const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"];
 
 // Refuses WEB.DE's system folders and every folder the profile maps (sent,

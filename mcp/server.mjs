@@ -11,6 +11,7 @@ import {
   buildMessage,
   buildOutgoingAttachments,
   buildSearchObject,
+  deleteMessages,
   describeError,
   downloadAttachment,
   exportMessage,
@@ -711,24 +712,13 @@ server.registerTool(
     runTool(() =>
       withImapClient((client, config) =>
         withMailbox(client, mailbox, { readOnly: false }, async () => {
-          if (permanent) {
-            const ok = await client.messageDelete(uids, { uid: true });
-            return makeTextResult(`Permanently deleted ${uids.length} message(s) from ${mailbox}.`, {
-              mailbox,
-              uids,
-              permanent: true,
-              ok,
-            });
-          }
-
-          const result = await client.messageMove(uids, config.folders.trash, { uid: true });
-          return makeTextResult(`Moved ${uids.length} message(s) from ${mailbox} to ${config.folders.trash}.`, {
-            mailbox,
-            trashMailbox: config.folders.trash,
-            uids,
-            permanent: false,
-            uidMap: result?.uidMap ? Object.fromEntries(result.uidMap) : null,
-          });
+          const result = await deleteMessages(client, config, { mailbox, uids, permanent });
+          return makeTextResult(
+            permanent
+              ? `Permanently deleted ${uids.length} message(s) from ${mailbox}.`
+              : `Moved ${uids.length} message(s) from ${mailbox} to ${config.folders.trash}.`,
+            result,
+          );
         }),
       ),
     ),
