@@ -717,6 +717,9 @@ function mailboxKey(name) {
 // special-use. Deleting them loses mail; renaming them breaks Sent copies,
 // drafts and trash moves, and renaming INBOX moves all of its mail. A
 // trailing hierarchy delimiter names the same folder.
+//
+// A folder that contains one of them is refused too: renaming it moves the
+// protected folder along, and deleting it can take the protected folder with it.
 export async function assertUnprotectedMailbox(client, mailbox, config, action) {
   const delimiter = client.namespace?.delimiter;
   let name = mailbox;
@@ -724,23 +727,38 @@ export async function assertUnprotectedMailbox(client, mailbox, config, action) 
     name = name.slice(0, -1);
   }
   const refuse = (reason = "") => new Error(`Refusing to ${action} protected mailbox: ${mailbox}${reason}`);
+  const refuseParent = (child, reason = "") =>
+    new Error(`Refusing to ${action} mailbox ${mailbox}: it contains protected mailbox ${child}${reason}`);
+
+  // LIST reports full paths, and ImapFlow adds the namespace prefix to a name
+  // without it before it sends DELETE or RENAME.
+  const keys = new Set([mailboxKey(name), mailboxKey(`${client.namespace?.prefix || ""}${name}`)]);
+  const delimiters = new Set(["/", delimiter].filter(Boolean));
+  const isInside = (path, separator) => {
+    const key = mailboxKey(path);
+    return [...keys].some((parent) =>
+      [...(separator ? [separator] : delimiters)].some((sep) => key.startsWith(`${parent}${sep}`)),
+    );
+  };
 
   const protectedNames = [...systemMailboxes, ...Object.values(config.folders || {})].filter((value) => typeof value === "string");
   if (protectedNames.some((protectedName) => mailboxKey(protectedName) === mailboxKey(name))) {
     throw refuse();
   }
+  const protectedChild = protectedNames.find((protectedName) => isInside(protectedName));
+  if (protectedChild) {
+    throw refuseParent(protectedChild);
+  }
 
-  // LIST reports full paths, and ImapFlow adds the namespace prefix to a name
-  // without it before it sends DELETE or RENAME.
-  const keys = new Set([mailboxKey(name), mailboxKey(`${client.namespace?.prefix || ""}${name}`)]);
   for (const entry of await client.list()) {
-    if (!keys.has(mailboxKey(entry.path))) {
+    const own = keys.has(mailboxKey(entry.path));
+    if (!own && !isInside(entry.path, entry.delimiter)) {
       continue;
     }
     const flags = [...(entry.flags || [])].map((flag) => flag.toLowerCase());
     const attribute = protectedSpecialUse.find((use) => flags.includes(use.toLowerCase()));
     if (attribute) {
-      throw refuse(` (WEB.DE marks it as ${attribute})`);
+      throw own ? refuse(` (WEB.DE marks it as ${attribute})`) : refuseParent(entry.path, `, which WEB.DE marks as ${attribute}`);
     }
   }
 }
@@ -811,6 +829,41 @@ async function saveDownload(content, outputPath, maxBytes, tooLargeMessage) {
   }
 }
 
+// Windows shows its "downloaded from the internet" warning, and runs
+// SmartScreen and Office Protected View, only for files that carry a
+// Zone.Identifier stream. ZoneId=3 is the Internet zone, the mark a browser
+// sets on its downloads. Other platforms have no such stream, and a path with
+// ":Zone.Identifier" there would create a second, unrelated file.
+export const MARK_OF_THE_WEB = "[ZoneTransfer]\r\nZoneId=3\r\n";
+
+export function markOfTheWeb(filePath, platform = process.platform) {
+  if (platform !== "win32") {
+    return false;
+  }
+  try {
+    fs.writeFileSync(`${filePath}:Zone.Identifier`, MARK_OF_THE_WEB);
+    return true;
+  } catch {
+    // FAT32, exFAT and some network shares have no alternate data streams.
+    return false;
+  }
+}
+
+export function downloadMark(outputPath, platform = process.platform) {
+  if (markOfTheWeb(outputPath, platform)) {
+    return { markOfTheWeb: true };
+  }
+  if (platform !== "win32") {
+    return { markOfTheWeb: false };
+  }
+  return {
+    markOfTheWeb: false,
+    warning:
+      "Windows could not mark this file as downloaded from the internet: the download folder does not support " +
+      "a Zone.Identifier stream (for example FAT32 or exFAT). Treat the file as untrusted.",
+  };
+}
+
 export async function exportMessage(client, config, { mailbox, uid, filename }) {
   fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
   const msg = await client.fetchOne(String(uid), { uid: true, envelope: true, size: true }, { uid: true });
@@ -845,6 +898,7 @@ export async function exportMessage(client, config, { mailbox, uid, filename }) 
     contentType: meta.contentType || "message/rfc822",
     size,
     expectedSize: meta.expectedSize ?? null,
+    ...downloadMark(outputPath),
   };
 }
 
@@ -880,6 +934,7 @@ export async function downloadAttachment(client, config, { mailbox, uid, part, f
     contentType: meta.contentType || "application/octet-stream",
     size: downloadedSize,
     expectedSize: downloadedSize,
+    ...downloadMark(outputPath),
   };
 }
 

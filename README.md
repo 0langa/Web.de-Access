@@ -191,7 +191,9 @@ profile unless the user explicitly asks for that trust boundary change.
 - Preserve BCC and Message-ID in drafts and sent copies
 - Mark read/unread or star/unstar
 - Copy, move, trash, or permanently delete messages
-- Create, rename, subscribe, unsubscribe, and delete user mailboxes
+- Create, rename, subscribe, unsubscribe, and delete user mailboxes (INBOX, system folders, the
+  folders the profile maps, folders the server marks as special-use, and folders that contain any
+  of them are refused)
 
 Sending and destructive tools act on a real mailbox. Codex should send only after an explicit user
 request and should prefer trash over permanent deletion unless permanent deletion is requested.
@@ -207,6 +209,11 @@ profile limits `maxAttachmentMb` (attachments) and `maxSourceMb` (complete messa
 read, and forward them) apply as hard limits: a download or export that would exceed them fails and
 leaves no partial file behind, `read_webde_message` reports `sourceTruncated` for a message it could
 read only in part, and forwarding the original attachments of such a message is refused.
+
+On Windows, downloaded attachments and exported `.eml` files carry Mark-of-the-Web (a
+`Zone.Identifier` stream with `ZoneId=3`, the mark a browser sets), so Windows warns before
+opening them and Office opens them in Protected View. If the download folder cannot hold that
+stream (for example on FAT32 or exFAT), the result reports `markOfTheWeb: false` with a warning.
 
 To restrict outgoing attachments to specific directories, list them in the profile's
 `allowedAttachmentRoots` array, or set `WEBDE_ALLOWED_ATTACHMENT_ROOTS` before running
