@@ -10,16 +10,11 @@ import {
   getProfilePassword,
   getProfilesPath,
   getStoredProfile,
-  mergeProfile,
-  profileFromNonSecretEnv,
   readProfiles,
   resolveProfileName,
-  runtimeConfig,
-  setProfilePassword,
-  upsertProfile,
 } from "../mcp/auth-config.mjs";
-import { withImapConnection } from "../mcp/mail.mjs";
 import { promptCredentials } from "./credential-prompt.mjs";
+import { storeValidatedProfile } from "./store-profile.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -66,16 +61,6 @@ Examples:
   npm run auth:import-env -- --profile dev --email-env WEBDE_DEV_EMAIL --password-env WEBDE_DEV_APP_PASSWORD
   npm run auth:status
 `);
-}
-
-// Logs in with the new settings and app password before anything is stored,
-// so a mistyped password cannot replace one that works.
-async function storeValidatedProfile(profile, email, password) {
-  const settings = profileFromNonSecretEnv(profile, email);
-  const candidate = runtimeConfig(profile, mergeProfile(profile, getStoredProfile(profile), settings), password);
-  await withImapConnection(candidate, async () => {});
-  upsertProfile(profile, settings);
-  await setProfilePassword(profile, password);
 }
 
 function getEnvByNames(names) {
