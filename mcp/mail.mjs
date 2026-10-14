@@ -811,6 +811,41 @@ async function saveDownload(content, outputPath, maxBytes, tooLargeMessage) {
   }
 }
 
+// Windows shows its "downloaded from the internet" warning, and runs
+// SmartScreen and Office Protected View, only for files that carry a
+// Zone.Identifier stream. ZoneId=3 is the Internet zone, the mark a browser
+// sets on its downloads. Other platforms have no such stream, and a path with
+// ":Zone.Identifier" there would create a second, unrelated file.
+export const MARK_OF_THE_WEB = "[ZoneTransfer]\r\nZoneId=3\r\n";
+
+export function markOfTheWeb(filePath, platform = process.platform) {
+  if (platform !== "win32") {
+    return false;
+  }
+  try {
+    fs.writeFileSync(`${filePath}:Zone.Identifier`, MARK_OF_THE_WEB);
+    return true;
+  } catch {
+    // FAT32, exFAT and some network shares have no alternate data streams.
+    return false;
+  }
+}
+
+export function downloadMark(outputPath, platform = process.platform) {
+  if (markOfTheWeb(outputPath, platform)) {
+    return { markOfTheWeb: true };
+  }
+  if (platform !== "win32") {
+    return { markOfTheWeb: false };
+  }
+  return {
+    markOfTheWeb: false,
+    warning:
+      "Windows could not mark this file as downloaded from the internet: the download folder does not support " +
+      "a Zone.Identifier stream (for example FAT32 or exFAT). Treat the file as untrusted.",
+  };
+}
+
 export async function exportMessage(client, config, { mailbox, uid, filename }) {
   fs.mkdirSync(config.attachmentDownloadDir, { recursive: true });
   const msg = await client.fetchOne(String(uid), { uid: true, envelope: true, size: true }, { uid: true });
@@ -845,6 +880,7 @@ export async function exportMessage(client, config, { mailbox, uid, filename }) 
     contentType: meta.contentType || "message/rfc822",
     size,
     expectedSize: meta.expectedSize ?? null,
+    ...downloadMark(outputPath),
   };
 }
 
@@ -880,6 +916,7 @@ export async function downloadAttachment(client, config, { mailbox, uid, part, f
     contentType: meta.contentType || "application/octet-stream",
     size: downloadedSize,
     expectedSize: downloadedSize,
+    ...downloadMark(outputPath),
   };
 }
 

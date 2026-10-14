@@ -8,15 +8,31 @@ import test from "node:test";
 import {
   createImapClient,
   downloadAttachment,
+  downloadMark,
   exportMessage,
   fetchParsedMessage,
   forwardMessage,
+  MARK_OF_THE_WEB,
+  markOfTheWeb,
   replyToMessage,
   truncatedOriginalWarning,
 } from "../mcp/mail.mjs";
 import { fakeConfig, fetchReply, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
 const LIMIT = 4096;
+
+// A download carries Mark-of-the-Web on Windows, so Windows warns before it
+// opens the file. Elsewhere there is no such stream and no extra file.
+function assertMarkOfTheWeb(result, downloadDir) {
+  if (process.platform === "win32") {
+    assert.equal(result.markOfTheWeb, true);
+    assert.equal(fs.readFileSync(`${result.outputPath}:Zone.Identifier`, "utf8"), "[ZoneTransfer]\r\nZoneId=3\r\n");
+  } else {
+    assert.equal(result.markOfTheWeb, false);
+  }
+  assert.equal(result.warning, undefined);
+  assert.deepEqual(fs.readdirSync(downloadDir), [result.filename]);
+}
 
 function base64Lines(buffer) {
   return Buffer.from(`${buffer.toString("base64").replace(/.{76}/g, "$&\r\n")}\r\n`);
@@ -107,6 +123,7 @@ test("an attachment within the size limit is saved completely", { timeout: 15000
     assert.equal(result.filename, "report.bin");
     assert.equal(result.size, LIMIT);
     assert.deepEqual(fs.readFileSync(result.outputPath), data);
+    assertMarkOfTheWeb(result, mailbox.downloadDir);
   } finally {
     await mailbox.close();
   }
@@ -144,8 +161,31 @@ test("a message export within the size limit writes the full .eml", { timeout: 1
     const result = await exportMessage(mailbox.client, mailbox.config, { mailbox: "INBOX", uid: 5 });
     assert.equal(result.filename, "Archive-5.eml");
     assert.deepEqual(fs.readFileSync(result.outputPath), raw);
+    assertMarkOfTheWeb(result, mailbox.downloadDir);
   } finally {
     await mailbox.close();
+  }
+});
+
+test("Mark-of-the-Web is written only on Windows, and a failed mark is reported", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "webde-motw-test-"));
+  try {
+    const file = path.join(directory, "scan.pdf");
+    fs.writeFileSync(file, "pdf");
+    assert.equal(markOfTheWeb(file, "linux"), false);
+    assert.deepEqual(downloadMark(file, "darwin"), { markOfTheWeb: false });
+    assert.deepEqual(fs.readdirSync(directory), ["scan.pdf"]);
+    // A stream that cannot be written leaves no file behind, and on Windows
+    // the result says the download is not marked.
+    const unmarkable = path.join(directory, "missing", "scan.pdf");
+    assert.equal(markOfTheWeb(unmarkable, "win32"), false);
+    const result = downloadMark(unmarkable, "win32");
+    assert.equal(result.markOfTheWeb, false);
+    assert.match(result.warning, /could not mark this file as downloaded from the internet.*untrusted/);
+    assert.deepEqual(fs.readdirSync(directory), ["scan.pdf"]);
+    assert.match(MARK_OF_THE_WEB, /^\[ZoneTransfer\]\r\nZoneId=3\r\n$/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 

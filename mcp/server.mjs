@@ -299,7 +299,10 @@ server.registerTool(
       withImapClient((client, config) =>
         withMailbox(client, mailbox, { readOnly: true }, async () => {
           const result = await exportMessage(client, config, { mailbox, uid, filename });
-          return makeTextResult(`Exported ${mailbox}/${uid} to ${result.outputPath}.`, result);
+          return makeTextResult(
+            `Exported ${mailbox}/${uid} to ${result.outputPath}.${result.warning ? ` ${result.warning}` : ""}`,
+            result,
+          );
         }),
       ),
     ),
@@ -379,7 +382,10 @@ server.registerTool(
       withImapClient((client, config) =>
         withMailbox(client, mailbox, { readOnly: true }, async () => {
           const result = await downloadAttachment(client, config, { mailbox, uid, part, filename });
-          return makeTextResult(`Downloaded attachment part ${part} from ${mailbox}/${uid}.`, result);
+          return makeTextResult(
+            `Downloaded attachment part ${part} from ${mailbox}/${uid}.${result.warning ? ` ${result.warning}` : ""}`,
+            result,
+          );
         }),
       ),
     ),

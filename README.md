@@ -208,6 +208,11 @@ read, and forward them) apply as hard limits: a download or export that would ex
 leaves no partial file behind, `read_webde_message` reports `sourceTruncated` for a message it could
 read only in part, and forwarding the original attachments of such a message is refused.
 
+On Windows, downloaded attachments and exported `.eml` files carry Mark-of-the-Web (a
+`Zone.Identifier` stream with `ZoneId=3`, the mark a browser sets), so Windows warns before
+opening them and Office opens them in Protected View. If the download folder cannot hold that
+stream (for example on FAT32 or exFAT), the result reports `markOfTheWeb: false` with a warning.
+
 To restrict outgoing attachments to specific directories, list them in the profile's
 `allowedAttachmentRoots` array, or set `WEBDE_ALLOWED_ATTACHMENT_ROOTS` before running
 `auth:login` (separate multiple roots with `;` on Windows or `:` on macOS/Linux). Leave it empty to
