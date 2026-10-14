@@ -202,6 +202,16 @@ export async function loadRuntimeConfig(options = {}) {
   return runtimeConfig(profile, stored, password);
 }
 
+// profiles.example.json writes paths as %USERPROFILE%\...; expand such
+// variables and a leading ~ instead of resolving them as literal folder
+// names below the server's working directory.
+function expandPath(value) {
+  const expanded = String(value)
+    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (match, name) => process.env[name] ?? match)
+    .replace(/^~(?=$|[\\/])/, os.homedir());
+  return path.resolve(expanded);
+}
+
 // Normalizes stored profile settings plus the app password into the shape the
 // mail code uses, without reading anything from disk or the credential store.
 export function runtimeConfig(profile, stored, password) {
@@ -225,8 +235,8 @@ export function runtimeConfig(profile, stored, password) {
       ...defaultProfileConfig(profile).folders,
       ...(config.folders || {}),
     },
-    attachmentDownloadDir: path.resolve(config.attachmentDownloadDir),
-    allowedAttachmentRoots: (config.allowedAttachmentRoots || []).map((item) => path.resolve(String(item))),
+    attachmentDownloadDir: expandPath(config.attachmentDownloadDir),
+    allowedAttachmentRoots: (config.allowedAttachmentRoots || []).map((item) => expandPath(item)),
     saveSentCopy: Boolean(config.saveSentCopy),
     markReadOnFetch: Boolean(config.markReadOnFetch),
     maxFetchMessages: parsePositiveInt(config.maxFetchMessages, "maxFetchMessages"),

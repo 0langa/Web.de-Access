@@ -76,21 +76,40 @@ test("re-running login keeps stored settings that the environment does not set",
   }
 });
 
-test("runtime config fills defaults and rejects broken profiles", () => {
-  const config = runtimeConfig(
-    "dev",
-    { email: " dev@example.com ", folders: { sent: "Sent" }, maxAttachmentMb: "20" },
-    "not-a-real-password",
-  );
-  assert.equal(config.email, "dev@example.com");
-  assert.equal(config.folders.sent, "Sent");
-  assert.equal(config.folders.trash, "Papierkorb");
-  assert.equal(config.maxAttachmentBytes, 20 * 1024 * 1024);
-  assert.equal(config.imapHost, "imap.web.de");
-  assert.equal(config.imapSecure, true);
+test("runtime config fills defaults, expands path variables and rejects broken profiles", () => {
+  const previous = process.env.WEBDE_TEST_HOME;
+  process.env.WEBDE_TEST_HOME = path.join(os.tmpdir(), "webde-home");
+  try {
+    const config = runtimeConfig(
+      "dev",
+      {
+        email: " dev@example.com ",
+        attachmentDownloadDir: "%WEBDE_TEST_HOME%/Downloads/webde-attachments",
+        allowedAttachmentRoots: ["~/outgoing", "%UNSET_WEBDE_VARIABLE%/x"],
+        folders: { sent: "Sent" },
+        maxAttachmentMb: "20",
+      },
+      "not-a-real-password",
+    );
+    assert.equal(config.email, "dev@example.com");
+    assert.equal(config.attachmentDownloadDir, path.resolve(process.env.WEBDE_TEST_HOME, "Downloads", "webde-attachments"));
+    assert.equal(config.allowedAttachmentRoots[0], path.resolve(os.homedir(), "outgoing"));
+    assert.equal(config.allowedAttachmentRoots[1], path.resolve("%UNSET_WEBDE_VARIABLE%/x"));
+    assert.equal(config.folders.sent, "Sent");
+    assert.equal(config.folders.trash, "Papierkorb");
+    assert.equal(config.maxAttachmentBytes, 20 * 1024 * 1024);
+    assert.equal(config.imapHost, "imap.web.de");
+    assert.equal(config.imapSecure, true);
 
-  assert.throws(() => runtimeConfig("dev", { email: "not-an-address" }, "x"), /no valid email address/);
-  assert.throws(() => runtimeConfig("dev", { email: "dev@example.com", maxSourceMb: "lots" }, "x"), /maxSourceMb must be a positive integer/);
+    assert.throws(() => runtimeConfig("dev", { email: "not-an-address" }, "x"), /no valid email address/);
+    assert.throws(() => runtimeConfig("dev", { email: "dev@example.com", maxSourceMb: "lots" }, "x"), /maxSourceMb must be a positive integer/);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.WEBDE_TEST_HOME;
+    } else {
+      process.env.WEBDE_TEST_HOME = previous;
+    }
+  }
 });
 
 test("profile names are constrained", () => {
