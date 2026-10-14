@@ -567,10 +567,18 @@ export async function copyMessages(client, { sourceMailbox, destinationMailbox, 
 }
 
 async function expungeByUid(client, mailbox, uids) {
+  // ImapFlow's messageDelete() ignores whether its own \Deleted STORE worked,
+  // and skips it when the mailbox's PERMANENTFLAGS lack \Deleted, then
+  // expunges anyway: the UID EXPUNGE succeeds without removing anything. Set
+  // the flag here first and check it.
+  const flagged = await client.messageFlagsAdd(uids, ["\\Deleted"], { uid: true });
+  if (!flagged) {
+    throw new Error(`WEB.DE did not confirm flagging the messages in ${mailbox} as deleted, so nothing was removed.`);
+  }
   const ok = await client.messageDelete(uids, { uid: true });
   if (!ok) {
-    // ImapFlow flags the messages \Deleted before it expunges. Left flagged,
-    // the next EXPUNGE from any mail client would remove them after all.
+    // The messages are flagged \Deleted by now. Left flagged, the next
+    // EXPUNGE from any mail client would remove them after all.
     const restored = await client.messageFlagsRemove(uids, ["\\Deleted"], { uid: true }).catch(() => false);
     throw new Error(
       `WEB.DE did not confirm the expunge in ${mailbox}; ${
@@ -595,7 +603,15 @@ export async function moveMessages(client, { sourceMailbox, destinationMailbox, 
     }
     result = await client.messageCopy(uids, destinationMailbox, { uid: true });
     if (result) {
-      await expungeByUid(client, sourceMailbox, uids);
+      try {
+        await expungeByUid(client, sourceMailbox, uids);
+      } catch (error) {
+        // The copies exist. Reported as a plain failed move, a retry would
+        // copy the messages a second time.
+        throw new Error(
+          `Copied the messages from ${sourceMailbox} to ${destinationMailbox}, but the originals could not be removed from ${sourceMailbox}, so they are now in both folders. ${describeError(error)}`,
+        );
+      }
     }
   }
   if (!result) {

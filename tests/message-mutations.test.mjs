@@ -4,7 +4,8 @@ import test from "node:test";
 import { copyMessages, createImapClient, deleteMessages, markMessages, moveMessages } from "../mcp/mail.mjs";
 import { fakeConfig, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
-// `replies` maps a command ("UID MOVE") to the tagged status the server answers with.
+// `replies` maps a command ("UID MOVE") to the tagged status the server answers
+// with, or to a function that returns the complete answer for a tag.
 async function inMailbox(capabilities, replies, work) {
   const imap = await startFakeImapServer({
     capabilities,
@@ -13,7 +14,7 @@ async function inMailbox(capabilities, replies, work) {
       if (!reply) {
         return false;
       }
-      write(`${tag} ${reply}\r\n`);
+      write(typeof reply === "function" ? reply(tag) : `${tag} ${reply}\r\n`);
       return true;
     },
   });
@@ -94,4 +95,44 @@ test("a failed permanent delete clears the \\Deleted flag again", { timeout: 150
   );
   assert.match(error?.message ?? "", /did not confirm the expunge in INBOX; the messages were left in place/);
   assert.ok(commands.some((line) => /^UID STORE 7 -FLAGS/.test(line)), commands.join("\n"));
+});
+
+// A mailbox whose PERMANENTFLAGS do not include \Deleted, as on a shared or
+// otherwise restricted folder. ImapFlow does not even send such a STORE.
+const selectWithoutDeleted = (tag) =>
+  "* FLAGS (\Answered \Flagged \Deleted \Seen \Draft)\r\n* 1 EXISTS\r\n* 0 RECENT\r\n" +
+  "* OK [PERMANENTFLAGS (\Seen \Flagged)] Limited\r\n* OK [UIDVALIDITY 1] UIDs valid\r\n" +
+  `${tag} OK [READ-WRITE] SELECT completed\r\n`;
+
+test("a permanent delete whose \Deleted flag does not take reports that nothing was removed", { timeout: 15000 }, async () => {
+  // ImapFlow's messageDelete() ignores its own STORE and expunges anyway. The
+  // UID EXPUNGE then succeeds without removing anything, and the messages
+  // were reported as permanently deleted.
+  for (const replies of [
+    { "UID STORE": "NO [CANNOT] Flags cannot be changed", "UID EXPUNGE": "OK EXPUNGE completed" },
+    { SELECT: selectWithoutDeleted, "UID STORE": "OK STORE completed", "UID EXPUNGE": "OK EXPUNGE completed" },
+  ]) {
+    const { error, commands } = await inMailbox("IMAP4rev1 UIDPLUS", replies, (client, config) =>
+      deleteMessages(client, config, { mailbox: "INBOX", uids: [7], permanent: true }),
+    );
+    assert.match(error?.message ?? "", /did not confirm flagging the messages in INBOX as deleted, so nothing was removed/);
+    assert.deepEqual(commands.filter((line) => /EXPUNGE/.test(line)), [], commands.join("\n"));
+  }
+});
+
+test("without MOVE, originals that cannot be removed after the copy are reported as now in both folders", { timeout: 15000 }, async () => {
+  const copied = "OK [COPYUID 1 7 70] COPY completed";
+  for (const [step, replies] of [
+    ["flag", { "UID COPY": copied, "UID STORE": "NO store failed", "UID EXPUNGE": "OK EXPUNGE completed" }],
+    ["expunge", { "UID COPY": copied, "UID STORE": "OK STORE completed", "UID EXPUNGE": "NO expunge failed" }],
+  ]) {
+    const { value, error } = await inMailbox("IMAP4rev1 UIDPLUS", replies, (client) => moveMessages(client, move));
+    // Reported as a plain failure, a retry would copy the messages again.
+    assert.equal(value, undefined, `a failed ${step} must not be reported as a move`);
+    assert.match(
+      error?.message ?? "",
+      /^Copied the messages from INBOX to Archiv, but the originals could not be removed from INBOX, so they are now in both folders\. /,
+      step,
+    );
+  }
 });
