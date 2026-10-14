@@ -719,7 +719,7 @@ server.registerTool(
   async ({ mailbox, newMailbox }) =>
     runTool(() =>
       withImapClient(async (client, config) => {
-        assertUnprotectedMailbox(mailbox, config, "rename");
+        await assertUnprotectedMailbox(client, mailbox, config, "rename");
         const result = await client.mailboxRename(mailbox, newMailbox);
         return makeTextResult(`Renamed WEB.DE mailbox ${mailbox} to ${newMailbox}.`, {
           mailbox,
@@ -762,7 +762,7 @@ server.registerTool(
   async ({ mailbox }) =>
     runTool(() =>
       withImapClient(async (client, config) => {
-        assertUnprotectedMailbox(mailbox, config, "delete");
+        await assertUnprotectedMailbox(client, mailbox, config, "delete");
         const result = await client.mailboxDelete(mailbox);
         return makeTextResult(`Deleted WEB.DE mailbox ${mailbox}.`, {
           mailbox,

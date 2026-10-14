@@ -697,18 +697,51 @@ export async function setMailboxSubscription(client, { mailbox, subscribed }) {
   return { mailbox, subscribed, ok };
 }
 
-const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"];
+const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang", "Unbekannt"];
 
-// Refuses WEB.DE's system folders and every folder the profile maps (sent,
-// drafts, trash, ...), whatever they are called in this account. Deleting
-// them loses mail; renaming them breaks Sent copies, drafts and trash moves,
-// and renaming INBOX moves all of its mail. INBOX is case-insensitive in
-// IMAP, and a trailing hierarchy delimiter names the same folder.
-export function assertUnprotectedMailbox(mailbox, config, action) {
-  const name = mailbox.replace(/\/+$/, "");
-  const protectedNames = new Set([...systemMailboxes, ...Object.values(config.folders || {})]);
-  if (name.toUpperCase() === "INBOX" || protectedNames.has(name)) {
-    throw new Error(`Refusing to ${action} protected mailbox: ${mailbox}`);
+// RFC 6154 special-use attributes. A server sets them on its system folders
+// whatever those are called, so they also cover folders the profile does not
+// map, such as English names.
+const protectedSpecialUse = ["\\Sent", "\\Drafts", "\\Trash", "\\Junk", "\\Archive", "\\All"];
+
+// Only INBOX is case-insensitive by definition. IMAP leaves case for every
+// other name to the server, so a name that differs from a protected folder
+// only in case may be that very folder. IMAP4rev2 servers store Unicode names
+// in NFC.
+function mailboxKey(name) {
+  return name.normalize("NFC").toLowerCase();
+}
+
+// Refuses INBOX, WEB.DE's system folders, every folder the profile maps
+// (sent, drafts, trash, ...) and every folder the server marks as
+// special-use. Deleting them loses mail; renaming them breaks Sent copies,
+// drafts and trash moves, and renaming INBOX moves all of its mail. A
+// trailing hierarchy delimiter names the same folder.
+export async function assertUnprotectedMailbox(client, mailbox, config, action) {
+  const delimiter = client.namespace?.delimiter;
+  let name = mailbox;
+  while (name.endsWith("/") || (delimiter && name.endsWith(delimiter))) {
+    name = name.slice(0, -1);
+  }
+  const refuse = (reason = "") => new Error(`Refusing to ${action} protected mailbox: ${mailbox}${reason}`);
+
+  const protectedNames = [...systemMailboxes, ...Object.values(config.folders || {})].filter((value) => typeof value === "string");
+  if (protectedNames.some((protectedName) => mailboxKey(protectedName) === mailboxKey(name))) {
+    throw refuse();
+  }
+
+  // LIST reports full paths, and ImapFlow adds the namespace prefix to a name
+  // without it before it sends DELETE or RENAME.
+  const keys = new Set([mailboxKey(name), mailboxKey(`${client.namespace?.prefix || ""}${name}`)]);
+  for (const entry of await client.list()) {
+    if (!keys.has(mailboxKey(entry.path))) {
+      continue;
+    }
+    const flags = [...(entry.flags || [])].map((flag) => flag.toLowerCase());
+    const attribute = protectedSpecialUse.find((use) => flags.includes(use.toLowerCase()));
+    if (attribute) {
+      throw refuse(` (WEB.DE marks it as ${attribute})`);
+    }
   }
 }
 

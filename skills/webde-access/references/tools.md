@@ -31,9 +31,9 @@ Message mutation tools:
 Mailbox mutation tools:
 
 - `create_webde_mailbox`: create a user folder.
-- `rename_webde_mailbox`: rename a user folder; like deletion, renaming WEB.DE system folders or a folder mapped in the profile is refused.
+- `rename_webde_mailbox`: rename a user folder; the folders that deletion refuses cannot be renamed either.
 - `set_webde_mailbox_subscription`: subscribe or unsubscribe an IMAP folder.
-- `delete_webde_mailbox`: delete a user folder; WEB.DE system folders and every folder mapped in the profile are refused.
+- `delete_webde_mailbox`: delete a user folder. INBOX, the WEB.DE system folders, every folder mapped in the profile, and every folder the server marks as special-use (`\Sent`, `\Drafts`, `\Trash`, `\Junk`, `\Archive`, `\All`) are refused, in any letter case.
 
 Website-only gaps:
 

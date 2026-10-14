@@ -4,22 +4,110 @@ import test from "node:test";
 import { assertUnprotectedMailbox, createImapClient, deleteMessages, markMessages, withMailbox } from "../mcp/mail.mjs";
 import { fakeConfig, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
-test("system folders and the folders the profile uses cannot be deleted or renamed", () => {
-  const config = fakeConfig();
-  config.folders = { ...config.folders, sent: "Sent Items", trash: "Deleted Items" };
-
-  for (const action of ["delete", "rename"]) {
-    for (const mailbox of ["INBOX", "inbox", "Gesendet", "Papierkorb", "Entwürfe", "Sent Items", "Deleted Items", "Sent Items/", "wichtig"]) {
-      assert.throws(
-        () => assertUnprotectedMailbox(mailbox, config, action),
-        new RegExp(`Refusing to ${action} protected mailbox`),
-        `${action} ${mailbox}`,
+// Runs `work` with refusal(mailbox, action), which resolves to the message
+// that refuses to delete or rename the folder, or to null when it may be
+// changed. The fake server lists `mailboxes`.
+async function withProtectionCheck({ mailboxes, capabilities = "IMAP4rev1 UIDPLUS SPECIAL-USE", onCommand } = {}, work) {
+  const imap = await startFakeImapServer({ capabilities, mailboxes, onCommand });
+  const config = fakeConfig({ imapPort: imap.port });
+  const client = createImapClient(config, { doSTARTTLS: false });
+  try {
+    await client.connect();
+    const refusal = (mailbox, action) =>
+      assertUnprotectedMailbox(client, mailbox, config, action).then(
+        () => null,
+        (error) => error.message,
       );
-    }
-    for (const mailbox of ["Projekte", "INBOX/Archiv", "Sent Items/2025"]) {
-      assert.doesNotThrow(() => assertUnprotectedMailbox(mailbox, config, action), `${action} ${mailbox}`);
-    }
+    await work(refusal, config);
+  } finally {
+    await client.logout().catch(() => {});
+    await imap.close();
   }
+}
+
+test("system folders and the folders the profile uses cannot be deleted or renamed, in any case", { timeout: 15000 }, async () => {
+  await withProtectionCheck({}, async (refusal, config) => {
+    config.folders = { ...config.folders, sent: "Sent Items", trash: "Deleted Items" };
+    const protectedNames = [
+      ...["INBOX", "inbox", "Gesendet", "GESENDET", "Papierkorb", "papierkorb", "Entwürfe", "ENTWÜRFE", "Unbekannt", "unbekannt"],
+      // "Entwürfe" with a decomposed ü (NFD).
+      "Entwürfe",
+      ...["Sent Items", "sent items", "Deleted Items", "Sent Items/", "wichtig", "Wichtig"],
+    ];
+    for (const action of ["delete", "rename"]) {
+      for (const mailbox of protectedNames) {
+        assert.equal(await refusal(mailbox, action), `Refusing to ${action} protected mailbox: ${mailbox}`, `${action} ${mailbox}`);
+      }
+      for (const mailbox of ["Projekte", "INBOX/Archiv", "Sent Items/2025"]) {
+        assert.equal(await refusal(mailbox, action), null, `${action} ${mailbox}`);
+      }
+    }
+  });
+});
+
+// A server with SPECIAL-USE (RFC 6154) marks its system folders, here under
+// English names the profile does not map. "Spamverdacht" carries its
+// attribute in lower case.
+const specialUseMailboxes = [
+  ["INBOX", "\\HasChildren"],
+  ["INBOX/Archiv", "\\HasNoChildren"],
+  ["Sent", "\\HasNoChildren", "\\Sent"],
+  ["Drafts", "\\HasNoChildren", "\\Drafts"],
+  ["Trash", "\\HasNoChildren", "\\Trash"],
+  ["Spamverdacht", "\\HasNoChildren", "\\junk"],
+  ["Archive", "\\HasChildren", "\\Archive"],
+  ["Archive/2025", "\\HasNoChildren"],
+  ["All Mail", "\\HasNoChildren", "\\All"],
+  ["Projekte", "\\HasNoChildren"],
+];
+
+test("folders the server marks as special-use cannot be deleted or renamed", { timeout: 15000 }, async () => {
+  await withProtectionCheck({ mailboxes: specialUseMailboxes }, async (refusal) => {
+    const marked = [
+      ["Sent", "\\Sent"],
+      ["sent", "\\Sent"],
+      ["Drafts", "\\Drafts"],
+      ["Trash", "\\Trash"],
+      ["Spamverdacht", "\\Junk"],
+      ["Archive/", "\\Archive"],
+      ["All Mail", "\\All"],
+    ];
+    for (const action of ["delete", "rename"]) {
+      for (const [mailbox, attribute] of marked) {
+        assert.equal(
+          await refusal(mailbox, action),
+          `Refusing to ${action} protected mailbox: ${mailbox} (WEB.DE marks it as ${attribute})`,
+          `${action} ${mailbox}`,
+        );
+      }
+      for (const mailbox of ["Projekte", "Archive/2025", "INBOX/Archiv"]) {
+        assert.equal(await refusal(mailbox, action), null, `${action} ${mailbox}`);
+      }
+    }
+  });
+});
+
+test("special-use folders below a namespace prefix are found by their short name", { timeout: 15000 }, async () => {
+  // Courier and Cyrus keep personal folders below "INBOX.". ImapFlow turns
+  // "Sent" into "INBOX.Sent" before it sends DELETE or RENAME.
+  const namespace = ({ tag, command, write }) => {
+    if (command !== "NAMESPACE") {
+      return false;
+    }
+    write(`* NAMESPACE (("INBOX." ".")) NIL NIL\r\n${tag} OK NAMESPACE completed\r\n`);
+    return true;
+  };
+  const mailboxes = [
+    ["INBOX", "\\HasChildren"],
+    ["INBOX.Sent", "\\HasNoChildren", "\\Sent"],
+    ["INBOX.Projekte", "\\HasNoChildren"],
+  ];
+  await withProtectionCheck({ mailboxes, capabilities: "IMAP4rev1 UIDPLUS SPECIAL-USE NAMESPACE", onCommand: namespace }, async (refusal) => {
+    for (const mailbox of ["Sent", "Sent.", "INBOX.Sent"]) {
+      assert.equal(await refusal(mailbox, "delete"), `Refusing to delete protected mailbox: ${mailbox} (WEB.DE marks it as \\Sent)`, mailbox);
+    }
+    assert.equal(await refusal("Projekte", "delete"), null);
+  });
 });
 
 async function permanentDelete(capabilities) {
