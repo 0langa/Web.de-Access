@@ -100,7 +100,7 @@ function resolveFileAttachment(attachment, config) {
     throw new Error(`Attachment path is not a file: ${resolvedPath}`);
   }
   if (stats.size > config.maxAttachmentBytes) {
-    throw new Error(`Attachment exceeds WEBDE_MAX_ATTACHMENT_MB: ${resolvedPath}`);
+    throw new Error(`Attachment exceeds the profile's maxAttachmentMb limit: ${resolvedPath}`);
   }
 
   const realPath = fs.realpathSync(resolvedPath);
@@ -108,7 +108,7 @@ function resolveFileAttachment(attachment, config) {
     config.allowedAttachmentRoots.length &&
     !config.allowedAttachmentRoots.some((root) => isInsidePath(root, realPath))
   ) {
-    throw new Error(`Attachment is outside WEBDE_ALLOWED_ATTACHMENT_ROOTS: ${resolvedPath}`);
+    throw new Error(`Attachment is outside the profile's allowedAttachmentRoots: ${resolvedPath}`);
   }
 
   return {
@@ -123,7 +123,7 @@ export function buildOutgoingAttachments(inlineAttachments, fileAttachments, con
 
   for (const attachment of inlineAttachments || []) {
     if (Buffer.byteLength(attachment.content) > config.maxAttachmentBytes) {
-      throw new Error(`Attachment exceeds WEBDE_MAX_ATTACHMENT_MB: ${attachment.filename}`);
+      throw new Error(`Attachment exceeds the profile's maxAttachmentMb limit: ${attachment.filename}`);
     }
     combined.push({
       filename: attachment.filename,
