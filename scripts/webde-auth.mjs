@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -19,6 +18,7 @@ import {
   upsertProfile,
 } from "../mcp/auth-config.mjs";
 import { withImapConnection } from "../mcp/mail.mjs";
+import { promptCredentials } from "./credential-prompt.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -67,55 +67,6 @@ Examples:
 `);
 }
 
-async function promptSecret(prompt) {
-  if (!process.stdin.isTTY) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    try {
-      return await rl.question(prompt);
-    } finally {
-      rl.close();
-    }
-  }
-
-  return new Promise((resolve, reject) => {
-    let value = "";
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-
-    function cleanup() {
-      stdin.off("data", onData);
-      stdin.setRawMode(wasRaw);
-      process.stdout.write("\n");
-    }
-
-    function onData(buffer) {
-      const text = buffer.toString("utf8");
-      for (const char of text) {
-        if (char === "\u0003") {
-          cleanup();
-          reject(new Error("Interrupted."));
-          return;
-        }
-        if (char === "\r" || char === "\n") {
-          cleanup();
-          resolve(value);
-          return;
-        }
-        if (char === "\b" || char === "\u007f") {
-          value = value.slice(0, -1);
-          continue;
-        }
-        value += char;
-      }
-    }
-
-    process.stdout.write(prompt);
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.on("data", onData);
-  });
-}
-
 async function validateProfile(profile) {
   const config = await loadRuntimeConfig({ profile, allowLegacyEnv: true });
   await withImapConnection(config, async () => {});
@@ -154,20 +105,14 @@ async function importEnv(args) {
 
 async function login(args) {
   const profile = resolveProfileName(args.profile);
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const email = args.email?.trim() || (await rl.question("WEB.DE email: "));
-    const password = args.password || (await promptSecret("WEB.DE app password: "));
-    if (!email || !password) {
-      throw new Error("Email and app password are required.");
-    }
-    upsertProfile(profile, profileFromNonSecretEnv(profile, email));
-    await setProfilePassword(profile, password);
-    await validateProfile(profile);
-    console.log(`Stored and validated WEB.DE profile '${profile}'.`);
-  } finally {
-    rl.close();
+  const { email, password } = await promptCredentials({ email: args.email, password: args.password });
+  if (!email || !password) {
+    throw new Error("Email and app password are required.");
   }
+  upsertProfile(profile, profileFromNonSecretEnv(profile, email));
+  await setProfilePassword(profile, password);
+  await validateProfile(profile);
+  console.log(`Stored and validated WEB.DE profile '${profile}'.`);
 }
 
 async function status() {
