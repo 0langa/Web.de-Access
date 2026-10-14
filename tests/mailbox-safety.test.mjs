@@ -87,6 +87,45 @@ test("folders the server marks as special-use cannot be deleted or renamed", { t
   });
 });
 
+test("a folder that contains a protected folder cannot be renamed or deleted", { timeout: 15000 }, async () => {
+  // Renaming a parent moves its children along, so the Sent folder the
+  // profile maps, or one the server marks, would move with it.
+  const mailboxes = [
+    ["INBOX", "\\HasNoChildren"],
+    ["Ablage", "\\HasChildren"],
+    ["Ablage/Gesendet", "\\HasNoChildren"],
+    ["Mail", "\\HasChildren"],
+    ["Mail/Sent", "\\HasNoChildren", "\\Sent"],
+    ["Kunden", "\\HasChildren"],
+    ["Kunden/2025", "\\HasNoChildren"],
+    ["Ablage2", "\\HasNoChildren"],
+    ["Mai", "\\HasNoChildren"],
+  ];
+  await withProtectionCheck({ mailboxes }, async (refusal, config) => {
+    config.folders = { ...config.folders, sent: "Ablage/Gesendet" };
+    for (const action of ["rename", "delete"]) {
+      for (const mailbox of ["Ablage", "ablage", "Ablage/"]) {
+        assert.equal(
+          await refusal(mailbox, action),
+          `Refusing to ${action} mailbox ${mailbox}: it contains protected mailbox Ablage/Gesendet`,
+          `${action} ${mailbox}`,
+        );
+      }
+      for (const mailbox of ["Mail", "MAIL/"]) {
+        assert.equal(
+          await refusal(mailbox, action),
+          `Refusing to ${action} mailbox ${mailbox}: it contains protected mailbox Mail/Sent, which WEB.DE marks as \\Sent`,
+          `${action} ${mailbox}`,
+        );
+      }
+      // Ordinary children, and names that only start the same, do not block.
+      for (const mailbox of ["Kunden", "Kunden/2025", "Ablage2", "Mai"]) {
+        assert.equal(await refusal(mailbox, action), null, `${action} ${mailbox}`);
+      }
+    }
+  });
+});
+
 test("special-use folders below a namespace prefix are found by their short name", { timeout: 15000 }, async () => {
   // Courier and Cyrus keep personal folders below "INBOX.". ImapFlow turns
   // "Sent" into "INBOX.Sent" before it sends DELETE or RENAME.

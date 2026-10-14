@@ -717,6 +717,9 @@ function mailboxKey(name) {
 // special-use. Deleting them loses mail; renaming them breaks Sent copies,
 // drafts and trash moves, and renaming INBOX moves all of its mail. A
 // trailing hierarchy delimiter names the same folder.
+//
+// A folder that contains one of them is refused too: renaming it moves the
+// protected folder along, and deleting it can take the protected folder with it.
 export async function assertUnprotectedMailbox(client, mailbox, config, action) {
   const delimiter = client.namespace?.delimiter;
   let name = mailbox;
@@ -724,23 +727,38 @@ export async function assertUnprotectedMailbox(client, mailbox, config, action) 
     name = name.slice(0, -1);
   }
   const refuse = (reason = "") => new Error(`Refusing to ${action} protected mailbox: ${mailbox}${reason}`);
+  const refuseParent = (child, reason = "") =>
+    new Error(`Refusing to ${action} mailbox ${mailbox}: it contains protected mailbox ${child}${reason}`);
+
+  // LIST reports full paths, and ImapFlow adds the namespace prefix to a name
+  // without it before it sends DELETE or RENAME.
+  const keys = new Set([mailboxKey(name), mailboxKey(`${client.namespace?.prefix || ""}${name}`)]);
+  const delimiters = new Set(["/", delimiter].filter(Boolean));
+  const isInside = (path, separator) => {
+    const key = mailboxKey(path);
+    return [...keys].some((parent) =>
+      [...(separator ? [separator] : delimiters)].some((sep) => key.startsWith(`${parent}${sep}`)),
+    );
+  };
 
   const protectedNames = [...systemMailboxes, ...Object.values(config.folders || {})].filter((value) => typeof value === "string");
   if (protectedNames.some((protectedName) => mailboxKey(protectedName) === mailboxKey(name))) {
     throw refuse();
   }
+  const protectedChild = protectedNames.find((protectedName) => isInside(protectedName));
+  if (protectedChild) {
+    throw refuseParent(protectedChild);
+  }
 
-  // LIST reports full paths, and ImapFlow adds the namespace prefix to a name
-  // without it before it sends DELETE or RENAME.
-  const keys = new Set([mailboxKey(name), mailboxKey(`${client.namespace?.prefix || ""}${name}`)]);
   for (const entry of await client.list()) {
-    if (!keys.has(mailboxKey(entry.path))) {
+    const own = keys.has(mailboxKey(entry.path));
+    if (!own && !isInside(entry.path, entry.delimiter)) {
       continue;
     }
     const flags = [...(entry.flags || [])].map((flag) => flag.toLowerCase());
     const attribute = protectedSpecialUse.find((use) => flags.includes(use.toLowerCase()));
     if (attribute) {
-      throw refuse(` (WEB.DE marks it as ${attribute})`);
+      throw own ? refuse(` (WEB.DE marks it as ${attribute})`) : refuseParent(entry.path, `, which WEB.DE marks as ${attribute}`);
     }
   }
 }

@@ -191,7 +191,9 @@ profile unless the user explicitly asks for that trust boundary change.
 - Preserve BCC and Message-ID in drafts and sent copies
 - Mark read/unread or star/unstar
 - Copy, move, trash, or permanently delete messages
-- Create, rename, subscribe, unsubscribe, and delete user mailboxes
+- Create, rename, subscribe, unsubscribe, and delete user mailboxes (INBOX, system folders, the
+  folders the profile maps, folders the server marks as special-use, and folders that contain any
+  of them are refused)
 
 Sending and destructive tools act on a real mailbox. Codex should send only after an explicit user
 request and should prefer trash over permanent deletion unless permanent deletion is requested.
