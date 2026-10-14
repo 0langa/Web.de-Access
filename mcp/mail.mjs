@@ -439,6 +439,20 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
   });
 }
 
+const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"];
+
+// Refuses WEB.DE's system folders and every folder the profile maps (sent,
+// drafts, trash, ...), whatever they are called in this account. INBOX is
+// case-insensitive in IMAP, and a trailing hierarchy delimiter names the same
+// folder.
+export function assertDeletableMailbox(mailbox, config) {
+  const name = mailbox.replace(/\/+$/, "");
+  const protectedNames = new Set([...systemMailboxes, ...Object.values(config.folders || {})]);
+  if (name.toUpperCase() === "INBOX" || protectedNames.has(name)) {
+    throw new Error(`Refusing to delete protected mailbox: ${mailbox}`);
+  }
+}
+
 export function sanitizeFilename(filename) {
   return filename.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, " ").trim() || "attachment";
 }

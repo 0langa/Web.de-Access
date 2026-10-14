@@ -7,6 +7,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import * as z from "zod/v4";
 import { loadRuntimeConfig } from "./auth-config.mjs";
 import {
+  assertDeletableMailbox,
   buildMessage,
   buildOutgoingAttachments,
   buildSearchObject,
@@ -840,11 +841,8 @@ server.registerTool(
   },
   async ({ mailbox }) =>
     runTool(() =>
-      withImapClient(async (client) => {
-        const protectedNames = new Set(["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"]);
-        if (protectedNames.has(mailbox)) {
-          throw new Error(`Refusing to delete protected mailbox: ${mailbox}`);
-        }
+      withImapClient(async (client, config) => {
+        assertDeletableMailbox(mailbox, config);
         const result = await client.mailboxDelete(mailbox);
         return makeTextResult(`Deleted WEB.DE mailbox ${mailbox}.`, {
           mailbox,
