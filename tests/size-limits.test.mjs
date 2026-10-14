@@ -5,7 +5,15 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createImapClient, downloadAttachment, exportMessage, fetchParsedMessage, forwardMessage } from "../mcp/mail.mjs";
+import {
+  createImapClient,
+  downloadAttachment,
+  exportMessage,
+  fetchParsedMessage,
+  forwardMessage,
+  replyToMessage,
+  truncatedOriginalWarning,
+} from "../mcp/mail.mjs";
 import { fakeConfig, fetchReply, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
 const LIMIT = 4096;
@@ -195,6 +203,34 @@ test("attachments of a message over maxSourceMb are not forwarded cut off", { ti
       /larger than the profile's maxSourceMb limit/,
     );
     assert.equal(sent.length, 0, "nothing may be sent");
+  } finally {
+    await mailbox.close();
+  }
+});
+
+test("replies and forwards of a message over maxSourceMb say that the original was cut off", { timeout: 15000 }, async () => {
+  const large = mailWithAttachment(LIMIT);
+  const mailbox = await openMailbox({ "": large }, large.length);
+  const sent = [];
+  const transport = { sendMail: async (mail) => sent.push(mail) && { messageId: mail.messageId } };
+  try {
+    const forward = await forwardMessage(
+      mailbox.client,
+      mailbox.config,
+      { mailbox: "INBOX", uid: 5, to: ["bob@example.test"], text: "FYI", includeOriginalAttachments: false, saveSentCopy: false },
+      { transport },
+    );
+    assert.equal(forward.original.truncated, true);
+    assert.equal(truncatedOriginalWarning(forward, mailbox.config).includes("may be incomplete"), true);
+
+    const reply = await replyToMessage(
+      mailbox.client,
+      mailbox.config,
+      { mailbox: "INBOX", uid: 5, text: "Thanks", replyAll: false, includeOriginal: true, saveSentCopy: false },
+      { transport },
+    );
+    assert.equal(reply.original.truncated, true);
+    assert.equal(sent.length, 2);
   } finally {
     await mailbox.close();
   }

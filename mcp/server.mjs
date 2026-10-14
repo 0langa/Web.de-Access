@@ -37,6 +37,7 @@ import {
   sentCopyWarning,
   setToArray,
   stringifyNumberLike,
+  truncatedOriginalWarning,
   withImapConnection,
   withMailbox,
 } from "./mail.mjs";
@@ -556,7 +557,10 @@ server.registerTool(
           fileAttachments,
           saveSentCopy,
         });
-        return makeTextResult(`Reply sent for ${mailbox}/${uid}.${sentCopyWarning(result)}`, result);
+        return makeTextResult(
+          `Reply sent for ${mailbox}/${uid}.${sentCopyWarning(result)}${truncatedOriginalWarning(result, config)}`,
+          result,
+        );
       }),
     );
   },
@@ -609,7 +613,10 @@ server.registerTool(
           fileAttachments,
           saveSentCopy,
         });
-        return makeTextResult(`Forwarded ${mailbox}/${uid} to ${to.join(", ")}.${sentCopyWarning(result)}`, result);
+        return makeTextResult(
+          `Forwarded ${mailbox}/${uid} to ${to.join(", ")}.${sentCopyWarning(result)}${truncatedOriginalWarning(result, config)}`,
+          result,
+        );
       }),
     ),
 );

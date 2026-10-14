@@ -841,7 +841,7 @@ function quoteOriginalHtml(parsed) {
 
 export async function replyToMessage(client, config, input, sendOptions) {
   const { mailbox, uid, text, html, replyAll, includeOriginal, cc, bcc, attachments, fileAttachments, saveSentCopy } = input;
-  const { parsed } = await fetchParsedMessage(client, mailbox, uid, config);
+  const { parsed, truncated } = await fetchParsedMessage(client, mailbox, uid, config);
   const recipients = replyRecipients(parsed, config, replyAll);
   if (!recipients.to.length) {
     throw new Error("No reply recipient could be inferred from the original message.");
@@ -870,7 +870,8 @@ export async function replyToMessage(client, config, input, sendOptions) {
   );
 
   return {
-    original: { mailbox, uid, subject: parsed.subject || "" },
+    // A truncated original still parses, but the quote may end early.
+    original: { mailbox, uid, subject: parsed.subject || "", truncated: Boolean(includeOriginal && truncated) },
     to: recipients.to,
     cc: [...recipients.cc, ...(cc || [])],
     ...result,
@@ -918,11 +919,21 @@ export async function forwardMessage(client, config, input, sendOptions) {
   );
 
   return {
-    original: { mailbox, uid, subject: parsed.subject || "" },
+    // A truncated original still parses, but the forwarded text may end early.
+    original: { mailbox, uid, subject: parsed.subject || "", truncated },
     to,
     includedOriginalAttachments: originalAttachments.length,
     ...result,
   };
+}
+
+// Appended to the reply/forward text result when the original was read only in part.
+export function truncatedOriginalWarning(result, config) {
+  return result.original?.truncated
+    ? ` The original is larger than the profile's maxSourceMb limit (${formatLimit(
+        config.maxSourceBytes,
+      )}), so the quoted or forwarded text may be incomplete.`
+    : "";
 }
 
 export async function sendMailAndMaybeSaveSent(config, message, { transport = getSmtpTransport(config), imapOptions } = {}) {
