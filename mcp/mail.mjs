@@ -583,9 +583,9 @@ function uidMapOf(result) {
   return result?.uidMap ? Object.fromEntries(result.uidMap) : null;
 }
 
-// ImapFlow resolves a failed STORE, COPY, MOVE or EXPUNGE to false instead of
-// rejecting, so every mutation below checks the result before it reports
-// success.
+// ImapFlow resolves a failed STORE, COPY, MOVE, EXPUNGE, SUBSCRIBE or
+// UNSUBSCRIBE to false instead of rejecting, so every mutation below checks
+// the result before it reports success.
 export async function markMessages(client, { mailbox, uids, action }) {
   const flag = action === "read" || action === "unread" ? "\\Seen" : "\\Flagged";
   const add = action === "read" || action === "star";
@@ -686,6 +686,15 @@ export async function deleteMessages(client, config, { mailbox, uids, permanent 
     permanent: false,
     uidMap: moved.uidMap,
   };
+}
+
+export async function setMailboxSubscription(client, { mailbox, subscribed }) {
+  const ok = subscribed ? await client.mailboxSubscribe(mailbox) : await client.mailboxUnsubscribe(mailbox);
+  // Only true confirms the change; undefined means no command was sent.
+  if (ok !== true) {
+    throw new Error(`WEB.DE did not confirm ${subscribed ? "subscribing to" : "unsubscribing from"} ${mailbox}.`);
+  }
+  return { mailbox, subscribed, ok };
 }
 
 const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"];

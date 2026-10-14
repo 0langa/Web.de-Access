@@ -33,6 +33,7 @@ import {
   searchMessages,
   sendMailAndMaybeSaveSent,
   sentCopyWarning,
+  setMailboxSubscription,
   setToArray,
   stringifyNumberLike,
   truncatedOriginalWarning,
@@ -743,12 +744,8 @@ server.registerTool(
   async ({ mailbox, subscribed }) =>
     runTool(() =>
       withImapClient(async (client) => {
-        const ok = subscribed ? await client.mailboxSubscribe(mailbox) : await client.mailboxUnsubscribe(mailbox);
-        return makeTextResult(`${subscribed ? "Subscribed to" : "Unsubscribed from"} WEB.DE mailbox ${mailbox}.`, {
-          mailbox,
-          subscribed,
-          ok,
-        });
+        const result = await setMailboxSubscription(client, { mailbox, subscribed });
+        return makeTextResult(`${subscribed ? "Subscribed to" : "Unsubscribed from"} WEB.DE mailbox ${mailbox}.`, result);
       }),
     ),
 );
