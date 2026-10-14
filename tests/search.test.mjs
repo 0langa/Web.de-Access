@@ -1,8 +1,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createImapClient, filterIdsBySubject, packUidSet } from "../mcp/mail.mjs";
+import { createImapClient, filterIdsBySubject, packUidSet, searchMessages } from "../mcp/mail.mjs";
 import { fakeConfig, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
+
+// Runs search_webde_messages' search against a server that answers UID SEARCH
+// with `reply(tag)`.
+async function search(reply, input) {
+  const imap = await startFakeImapServer({
+    onCommand: ({ tag, command, write }) => {
+      if (command === "UID SEARCH") {
+        write(reply(tag));
+        return true;
+      }
+      return false;
+    },
+  });
+  const config = fakeConfig({ imapPort: imap.port });
+  const client = createImapClient(config, { doSTARTTLS: false });
+  try {
+    await client.connect();
+    return await searchMessages(client, config, { mailbox: "INBOX", ...input }).then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+  } finally {
+    await client.logout().catch(() => {});
+    await imap.close();
+  }
+}
+
+test("a search WEB.DE refuses fails instead of reporting no matches", { timeout: 15000 }, async () => {
+  for (const status of ["NO [UNAVAILABLE] Search backend unavailable", "BAD Error in IMAP command UID SEARCH: Invalid arguments"]) {
+    for (const input of [{ from: "alice@example.test" }, { subject: "Rechnung" }]) {
+      const { value, error } = await search((tag) => `${tag} ${status}\r\n`, input);
+      assert.equal(value, undefined, `${status} for ${JSON.stringify(input)} must not read as a result`);
+      assert.match(error?.message ?? "", /^WEB\.DE refused the search in INBOX/, status);
+    }
+  }
+});
+
+test("a search that the server completes without matches reports zero matches", { timeout: 15000 }, async () => {
+  const { value, error } = await search((tag) => `* SEARCH\r\n${tag} OK SEARCH completed\r\n`, { from: "alice@example.test" });
+  assert.equal(error, undefined);
+  assert.deepEqual(value, { mailbox: "INBOX", totalMatches: 0, returned: 0, messages: [] });
+});
 
 test("UID lists are packed into IMAP ranges", () => {
   assert.equal(packUidSet([1, 2, 3, 5, 7, 8]), "1:3,5,7:8");

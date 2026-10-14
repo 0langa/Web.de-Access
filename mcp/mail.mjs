@@ -489,6 +489,48 @@ export function normalizeLimit(limit, fallback) {
   return Math.max(1, Math.min(limit, 500));
 }
 
+export async function searchMessages(client, config, input) {
+  return withMailbox(client, input.mailbox, { readOnly: true }, async () => {
+    const searchObject = buildSearchObject(input, { omit: input.subject ? ["subject"] : [] });
+    // ImapFlow resolves a SEARCH the server refuses (NO or BAD) to false.
+    // Read as an empty list, that reported "0 matching messages".
+    const searchedIds = await client.search(searchObject, { uid: true });
+    if (!Array.isArray(searchedIds)) {
+      throw new Error(`WEB.DE refused the search in ${input.mailbox}, so it is not known which messages match.`);
+    }
+    const ids = await filterIdsBySubject(client, searchedIds, input.subject);
+    const limit = normalizeLimit(input.limit, config.maxFetchMessages);
+    const selectedIds = ids.slice(-limit).reverse();
+    const messages = [];
+
+    if (selectedIds.length) {
+      for await (const msg of client.fetch(
+        selectedIds,
+        {
+          uid: true,
+          flags: true,
+          envelope: true,
+          internalDate: true,
+          size: true,
+          bodyStructure: true,
+        },
+        { uid: true },
+      )) {
+        messages.push(messageSummary(msg));
+      }
+    }
+
+    messages.sort((a, b) => selectedIds.indexOf(a.uid) - selectedIds.indexOf(b.uid));
+
+    return {
+      mailbox: input.mailbox,
+      totalMatches: ids.length,
+      returned: messages.length,
+      messages,
+    };
+  });
+}
+
 export async function fetchParsedMessage(client, mailbox, uid, config) {
   return withMailbox(client, mailbox, { readOnly: !config.markReadOnFetch }, async () => {
     const msg = await client.fetchOne(

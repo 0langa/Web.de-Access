@@ -10,7 +10,6 @@ import {
   assertUnprotectedMailbox,
   buildMessage,
   buildOutgoingAttachments,
-  buildSearchObject,
   checkConnection,
   copyMessages,
   deleteMessages,
@@ -18,7 +17,6 @@ import {
   downloadAttachment,
   exportMessage,
   fetchParsedMessage,
-  filterIdsBySubject,
   formatLimit,
   forwardMessage,
   fromAddress,
@@ -28,11 +26,11 @@ import {
   markMessages,
   messageSummary,
   moveMessages,
-  normalizeLimit,
   parsedAddressList,
   parsedMessageText,
   parsedMessageTextSource,
   replyToMessage,
+  searchMessages,
   sendMailAndMaybeSaveSent,
   sentCopyWarning,
   setToArray,
@@ -274,42 +272,13 @@ server.registerTool(
   },
   async (input) =>
     runTool(() =>
-      withImapClient((client, config) =>
-        withMailbox(client, input.mailbox, { readOnly: true }, async () => {
-          const searchObject = buildSearchObject(input, { omit: input.subject ? ["subject"] : [] });
-          const searchedIds = (await client.search(searchObject, { uid: true })) || [];
-          const ids = await filterIdsBySubject(client, searchedIds, input.subject);
-          const limit = normalizeLimit(input.limit, config.maxFetchMessages);
-          const selectedIds = ids.slice(-limit).reverse();
-          const messages = [];
-
-          if (selectedIds.length) {
-            for await (const msg of client.fetch(
-              selectedIds,
-              {
-                uid: true,
-                flags: true,
-                envelope: true,
-                internalDate: true,
-                size: true,
-                bodyStructure: true,
-              },
-              { uid: true },
-            )) {
-              messages.push(messageSummary(msg));
-            }
-          }
-
-          messages.sort((a, b) => selectedIds.indexOf(a.uid) - selectedIds.indexOf(b.uid));
-
-          return makeTextResult(`Found ${ids.length} matching messages in ${input.mailbox}; returning ${messages.length}.`, {
-            mailbox: input.mailbox,
-            totalMatches: ids.length,
-            returned: messages.length,
-            messages,
-          });
-        }),
-      ),
+      withImapClient(async (client, config) => {
+        const result = await searchMessages(client, config, input);
+        return makeTextResult(
+          `Found ${result.totalMatches} matching messages in ${input.mailbox}; returning ${result.returned}.`,
+          result,
+        );
+      }),
     ),
 );
 
