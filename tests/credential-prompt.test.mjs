@@ -58,6 +58,18 @@ test("only the missing part of the login is asked for", async () => {
   assert.doesNotMatch(terminal.screen(), /s3cret/);
 });
 
+test("a non-ASCII password split across terminal reads arrives intact", async () => {
+  const terminal = fakeTerminal();
+  const answers = promptCredentials({ email: "user@example.test" }, terminal);
+  const typed = Buffer.from("pässwort\r", "utf8");
+  // The two bytes of "ä" land in different reads.
+  await terminal.typeAfter("WEB.DE app password: ", typed.subarray(0, 2));
+  await new Promise((resolve) => setImmediate(resolve));
+  terminal.input.write(typed.subarray(2));
+
+  assert.equal((await answers).password, "pässwort");
+});
+
 test("piped answers are read even when both lines arrive at once", async () => {
   const input = new PassThrough();
   const output = new PassThrough();

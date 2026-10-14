@@ -1,4 +1,5 @@
 import readline from "node:readline/promises";
+import { StringDecoder } from "node:string_decoder";
 
 // Asks for whatever part of the WEB.DE login was not passed on the command line.
 export async function promptCredentials({ email, password } = {}, { input = process.stdin, output = process.stdout } = {}) {
@@ -45,6 +46,8 @@ function readHidden(prompt, { input, output }) {
   return new Promise((resolve, reject) => {
     let value = "";
     const wasRaw = input.isRaw;
+    // Keeps a multi-byte character that is split across two reads intact.
+    const decoder = new StringDecoder("utf8");
 
     function cleanup() {
       input.off("data", onData);
@@ -54,7 +57,7 @@ function readHidden(prompt, { input, output }) {
     }
 
     function onData(buffer) {
-      const text = buffer.toString("utf8");
+      const text = typeof buffer === "string" ? buffer : decoder.write(buffer);
       for (const char of text) {
         if (char === "\u0003") {
           cleanup();
