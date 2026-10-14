@@ -12,6 +12,7 @@ import {
   buildOutgoingAttachments,
   buildSearchObject,
   checkConnection,
+  copyMessages,
   deleteMessages,
   describeError,
   downloadAttachment,
@@ -24,7 +25,9 @@ import {
   isBodyPartNumber,
   isImapSearchDate,
   isUidSet,
+  markMessages,
   messageSummary,
+  moveMessages,
   normalizeLimit,
   parsedAddressList,
   parsedMessageText,
@@ -626,18 +629,8 @@ server.registerTool(
     runTool(() =>
       withImapClient((client) =>
         withMailbox(client, mailbox, { readOnly: false }, async () => {
-          const flag = action === "read" || action === "unread" ? "\\Seen" : "\\Flagged";
-          const add = action === "read" || action === "star";
-          const ok = add
-            ? await client.messageFlagsAdd(uids, [flag], { uid: true })
-            : await client.messageFlagsRemove(uids, [flag], { uid: true });
-
-          return makeTextResult(`Marked ${uids.length} message(s) in ${mailbox} as ${action}.`, {
-            mailbox,
-            uids,
-            action,
-            ok,
-          });
+          const result = await markMessages(client, { mailbox, uids, action });
+          return makeTextResult(`Marked ${uids.length} message(s) in ${mailbox} as ${action}.`, result);
         }),
       ),
     ),
@@ -658,13 +651,8 @@ server.registerTool(
     runTool(() =>
       withImapClient((client) =>
         withMailbox(client, sourceMailbox, { readOnly: false }, async () => {
-          const result = await client.messageMove(uids, destinationMailbox, { uid: true });
-          return makeTextResult(`Moved ${uids.length} message(s) from ${sourceMailbox} to ${destinationMailbox}.`, {
-            sourceMailbox,
-            destinationMailbox,
-            uids,
-            uidMap: result?.uidMap ? Object.fromEntries(result.uidMap) : null,
-          });
+          const result = await moveMessages(client, { sourceMailbox, destinationMailbox, uids });
+          return makeTextResult(`Moved ${uids.length} message(s) from ${sourceMailbox} to ${destinationMailbox}.`, result);
         }),
       ),
     ),
@@ -712,13 +700,8 @@ server.registerTool(
     runTool(() =>
       withImapClient((client) =>
         withMailbox(client, sourceMailbox, { readOnly: false }, async () => {
-          const result = await client.messageCopy(uids, destinationMailbox, { uid: true });
-          return makeTextResult(`Copied ${uids.length} message(s) from ${sourceMailbox} to ${destinationMailbox}.`, {
-            sourceMailbox,
-            destinationMailbox,
-            uids,
-            uidMap: result?.uidMap ? Object.fromEntries(result.uidMap) : null,
-          });
+          const result = await copyMessages(client, { sourceMailbox, destinationMailbox, uids });
+          return makeTextResult(`Copied ${uids.length} message(s) from ${sourceMailbox} to ${destinationMailbox}.`, result);
         }),
       ),
     ),

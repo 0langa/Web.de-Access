@@ -520,13 +520,83 @@ export async function fetchParsedMessage(client, mailbox, uid, config) {
   });
 }
 
-// UID EXPUNGE comes with UIDPLUS, which IMAP4rev2 includes (same test as ImapFlow).
+// Same tests ImapFlow uses: IMAP4rev2 includes both MOVE and UIDPLUS.
+function isRev2Session(client) {
+  return client.enabled.has("IMAP4REV2") || (client.capabilities.has("IMAP4rev2") && !client.capabilities.has("IMAP4rev1"));
+}
+
+// UID EXPUNGE comes with UIDPLUS.
 function canExpungeByUid(client) {
-  return (
-    client.capabilities.has("UIDPLUS") ||
-    client.enabled.has("IMAP4REV2") ||
-    (client.capabilities.has("IMAP4rev2") && !client.capabilities.has("IMAP4rev1"))
-  );
+  return client.capabilities.has("UIDPLUS") || isRev2Session(client);
+}
+
+function uidMapOf(result) {
+  return result?.uidMap ? Object.fromEntries(result.uidMap) : null;
+}
+
+// ImapFlow resolves a failed STORE, COPY, MOVE or EXPUNGE to false instead of
+// rejecting, so every mutation below checks the result before it reports
+// success.
+export async function markMessages(client, { mailbox, uids, action }) {
+  const flag = action === "read" || action === "unread" ? "\\Seen" : "\\Flagged";
+  const add = action === "read" || action === "star";
+  const ok = add
+    ? await client.messageFlagsAdd(uids, [flag], { uid: true })
+    : await client.messageFlagsRemove(uids, [flag], { uid: true });
+  if (!ok) {
+    throw new Error(`WEB.DE did not confirm marking the messages in ${mailbox} as ${action}.`);
+  }
+  return { mailbox, uids, action, ok };
+}
+
+export async function copyMessages(client, { sourceMailbox, destinationMailbox, uids }) {
+  const result = await client.messageCopy(uids, destinationMailbox, { uid: true });
+  if (!result) {
+    throw new Error(
+      `WEB.DE did not copy the messages from ${sourceMailbox} to ${destinationMailbox}. Check the folder name with list_webde_mailboxes.`,
+    );
+  }
+  return { sourceMailbox, destinationMailbox, uids, uidMap: uidMapOf(result) };
+}
+
+async function expungeByUid(client, mailbox, uids) {
+  const ok = await client.messageDelete(uids, { uid: true });
+  if (!ok) {
+    // ImapFlow flags the messages \Deleted before it expunges. Left flagged,
+    // the next EXPUNGE from any mail client would remove them after all.
+    const restored = await client.messageFlagsRemove(uids, ["\\Deleted"], { uid: true }).catch(() => false);
+    throw new Error(
+      `WEB.DE did not confirm the expunge in ${mailbox}; ${
+        restored ? "the messages were left in place" : "the messages may still be flagged as deleted"
+      }.`,
+    );
+  }
+}
+
+export async function moveMessages(client, { sourceMailbox, destinationMailbox, uids }) {
+  let result;
+  if (client.capabilities.has("MOVE") || isRev2Session(client)) {
+    result = await client.messageMove(uids, destinationMailbox, { uid: true });
+  } else {
+    // ImapFlow emulates a missing MOVE as COPY plus delete, but deletes the
+    // originals even when the copy failed, and expunges the whole mailbox
+    // without UIDPLUS. Take the steps here and stop after a failed copy.
+    if (!canExpungeByUid(client)) {
+      throw new Error(
+        `Refusing to move: the IMAP server supports neither MOVE nor UIDPLUS, so removing the originals would also expunge other messages marked as deleted in ${sourceMailbox}. Copy the messages instead.`,
+      );
+    }
+    result = await client.messageCopy(uids, destinationMailbox, { uid: true });
+    if (result) {
+      await expungeByUid(client, sourceMailbox, uids);
+    }
+  }
+  if (!result) {
+    throw new Error(
+      `WEB.DE did not move the messages from ${sourceMailbox} to ${destinationMailbox}. Check the folder name with list_webde_mailboxes.`,
+    );
+  }
+  return { sourceMailbox, destinationMailbox, uids, uidMap: uidMapOf(result) };
 }
 
 export async function deleteMessages(client, config, { mailbox, uids, permanent }) {
@@ -539,17 +609,17 @@ export async function deleteMessages(client, config, { mailbox, uids, permanent 
         `Refusing to delete permanently: the IMAP server does not support UIDPLUS, so the expunge would also remove other messages marked as deleted in ${mailbox}. Move the messages to ${config.folders.trash} instead.`,
       );
     }
-    const ok = await client.messageDelete(uids, { uid: true });
-    return { mailbox, uids, permanent: true, ok };
+    await expungeByUid(client, mailbox, uids);
+    return { mailbox, uids, permanent: true, ok: true };
   }
 
-  const result = await client.messageMove(uids, config.folders.trash, { uid: true });
+  const moved = await moveMessages(client, { sourceMailbox: mailbox, destinationMailbox: config.folders.trash, uids });
   return {
     mailbox,
     trashMailbox: config.folders.trash,
     uids,
     permanent: false,
-    uidMap: result?.uidMap ? Object.fromEntries(result.uidMap) : null,
+    uidMap: moved.uidMap,
   };
 }
 
