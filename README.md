@@ -85,7 +85,8 @@ through repo copies, plugin caches, managed installs, or marketplace packaging.
 Each profile in `profiles.json` also holds the non-secret settings: folder names, the attachment
 download directory, size limits, allowed attachment roots, and the IMAP/SMTP endpoints. See
 [`profiles.example.json`](profiles.example.json) for every key and its default. The MCP server reads
-only this file at runtime; `WEBDE_*` environment variables have no effect on a running server.
+these settings only from this file; the setting variables below, such as `WEBDE_SENT_MAILBOX`, have no
+effect on a running server. `WEBDE_ACCESS_PROFILE` still selects which profile it uses.
 
 `auth:login` and `auth:import-env` copy optional `WEBDE_*` variables into the profile when they are
 set, for example `WEBDE_SENT_MAILBOX`, `WEBDE_ATTACHMENT_DOWNLOAD_DIR`, `WEBDE_MAX_ATTACHMENT_MB`,
