@@ -10,10 +10,11 @@ import {
   getProfilePassword,
   getProfilesPath,
   getStoredProfile,
-  loadRuntimeConfig,
+  mergeProfile,
   profileFromNonSecretEnv,
   readProfiles,
   resolveProfileName,
+  runtimeConfig,
   setProfilePassword,
   upsertProfile,
 } from "../mcp/auth-config.mjs";
@@ -67,9 +68,14 @@ Examples:
 `);
 }
 
-async function validateProfile(profile) {
-  const config = await loadRuntimeConfig({ profile, allowLegacyEnv: true });
-  await withImapConnection(config, async () => {});
+// Logs in with the new settings and app password before anything is stored,
+// so a mistyped password cannot replace one that works.
+async function storeValidatedProfile(profile, email, password) {
+  const settings = profileFromNonSecretEnv(profile, email);
+  const candidate = runtimeConfig(profile, mergeProfile(profile, getStoredProfile(profile), settings), password);
+  await withImapConnection(candidate, async () => {});
+  upsertProfile(profile, settings);
+  await setProfilePassword(profile, password);
 }
 
 function getEnvByNames(names) {
@@ -97,9 +103,7 @@ async function importEnv(args) {
     throw new Error("No password found. Pass --password-env pointing at the migration-only app password variable.");
   }
 
-  upsertProfile(profile, profileFromNonSecretEnv(profile, email));
-  await setProfilePassword(profile, password);
-  await validateProfile(profile);
+  await storeValidatedProfile(profile, email, password);
   console.log(`Imported and validated WEB.DE profile '${profile}'.`);
 }
 
@@ -109,9 +113,7 @@ async function login(args) {
   if (!email || !password) {
     throw new Error("Email and app password are required.");
   }
-  upsertProfile(profile, profileFromNonSecretEnv(profile, email));
-  await setProfilePassword(profile, password);
-  await validateProfile(profile);
+  await storeValidatedProfile(profile, email, password);
   console.log(`Stored and validated WEB.DE profile '${profile}'.`);
 }
 

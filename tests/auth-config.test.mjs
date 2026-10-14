@@ -12,6 +12,7 @@ import {
   profileFromNonSecretEnv,
   readProfiles,
   resolveProfileName,
+  runtimeConfig,
   upsertProfile,
   writeProfiles,
 } from "../mcp/auth-config.mjs";
@@ -73,6 +74,23 @@ test("re-running login keeps stored settings that the environment does not set",
     Object.assign(process.env, previousEnv);
     fs.rmSync(appData, { recursive: true, force: true });
   }
+});
+
+test("runtime config fills defaults and rejects broken profiles", () => {
+  const config = runtimeConfig(
+    "dev",
+    { email: " dev@example.com ", folders: { sent: "Sent" }, maxAttachmentMb: "20" },
+    "not-a-real-password",
+  );
+  assert.equal(config.email, "dev@example.com");
+  assert.equal(config.folders.sent, "Sent");
+  assert.equal(config.folders.trash, "Papierkorb");
+  assert.equal(config.maxAttachmentBytes, 20 * 1024 * 1024);
+  assert.equal(config.imapHost, "imap.web.de");
+  assert.equal(config.imapSecure, true);
+
+  assert.throws(() => runtimeConfig("dev", { email: "not-an-address" }, "x"), /no valid email address/);
+  assert.throws(() => runtimeConfig("dev", { email: "dev@example.com", maxSourceMb: "lots" }, "x"), /maxSourceMb must be a positive integer/);
 });
 
 test("profile names are constrained", () => {

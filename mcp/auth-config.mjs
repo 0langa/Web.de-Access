@@ -96,17 +96,21 @@ export function writeProfiles(data) {
   fs.writeFileSync(profilesPath, content, { encoding: "utf8", mode: 0o600 });
 }
 
-export function upsertProfile(profile, config) {
-  const data = readProfiles();
+export function mergeProfile(profile, stored, config) {
   const defaults = defaultProfileConfig(profile);
-  const stored = data.profiles[profile] || {};
-  data.profiles[profile] = {
+  const current = stored || {};
+  return {
     ...defaults,
-    ...stored,
+    ...current,
     ...config,
-    folders: { ...defaults.folders, ...(stored.folders || {}), ...(config.folders || {}) },
+    folders: { ...defaults.folders, ...(current.folders || {}), ...(config.folders || {}) },
     profile,
   };
+}
+
+export function upsertProfile(profile, config) {
+  const data = readProfiles();
+  data.profiles[profile] = mergeProfile(profile, data.profiles[profile], config);
   writeProfiles(data);
   return data.profiles[profile];
 }
@@ -195,6 +199,12 @@ export async function loadRuntimeConfig(options = {}) {
     throw new Error(`WEB.DE profile '${profile}' has no OS credential. Run npm run auth:login -- --profile ${profile}.`);
   }
 
+  return runtimeConfig(profile, stored, password);
+}
+
+// Normalizes stored profile settings plus the app password into the shape the
+// mail code uses, without reading anything from disk or the credential store.
+export function runtimeConfig(profile, stored, password) {
   const config = {
     ...defaultProfileConfig(profile),
     ...stored,
