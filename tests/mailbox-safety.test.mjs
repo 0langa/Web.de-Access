@@ -1,18 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertDeletableMailbox, createImapClient, deleteMessages } from "../mcp/mail.mjs";
+import { assertUnprotectedMailbox, createImapClient, deleteMessages } from "../mcp/mail.mjs";
 import { fakeConfig, startFakeImapServer } from "./helpers/fake-imap-server.mjs";
 
-test("system folders and the folders the profile uses cannot be deleted", () => {
+test("system folders and the folders the profile uses cannot be deleted or renamed", () => {
   const config = fakeConfig();
   config.folders = { ...config.folders, sent: "Sent Items", trash: "Deleted Items" };
 
-  for (const mailbox of ["INBOX", "inbox", "Gesendet", "Papierkorb", "Entwürfe", "Sent Items", "Deleted Items", "Sent Items/", "wichtig"]) {
-    assert.throws(() => assertDeletableMailbox(mailbox, config), /Refusing to delete protected mailbox/, mailbox);
-  }
-  for (const mailbox of ["Projekte", "INBOX/Archiv", "Sent Items/2025"]) {
-    assert.doesNotThrow(() => assertDeletableMailbox(mailbox, config), mailbox);
+  for (const action of ["delete", "rename"]) {
+    for (const mailbox of ["INBOX", "inbox", "Gesendet", "Papierkorb", "Entwürfe", "Sent Items", "Deleted Items", "Sent Items/", "wichtig"]) {
+      assert.throws(
+        () => assertUnprotectedMailbox(mailbox, config, action),
+        new RegExp(`Refusing to ${action} protected mailbox`),
+        `${action} ${mailbox}`,
+      );
+    }
+    for (const mailbox of ["Projekte", "INBOX/Archiv", "Sent Items/2025"]) {
+      assert.doesNotThrow(() => assertUnprotectedMailbox(mailbox, config, action), `${action} ${mailbox}`);
+    }
   }
 });
 

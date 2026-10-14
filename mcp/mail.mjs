@@ -626,14 +626,15 @@ export async function deleteMessages(client, config, { mailbox, uids, permanent 
 const systemMailboxes = ["INBOX", "Gesendet", "Entwurf", "Entwürfe", "Papierkorb", "Spam", "Postausgang"];
 
 // Refuses WEB.DE's system folders and every folder the profile maps (sent,
-// drafts, trash, ...), whatever they are called in this account. INBOX is
-// case-insensitive in IMAP, and a trailing hierarchy delimiter names the same
-// folder.
-export function assertDeletableMailbox(mailbox, config) {
+// drafts, trash, ...), whatever they are called in this account. Deleting
+// them loses mail; renaming them breaks Sent copies, drafts and trash moves,
+// and renaming INBOX moves all of its mail. INBOX is case-insensitive in
+// IMAP, and a trailing hierarchy delimiter names the same folder.
+export function assertUnprotectedMailbox(mailbox, config, action) {
   const name = mailbox.replace(/\/+$/, "");
   const protectedNames = new Set([...systemMailboxes, ...Object.values(config.folders || {})]);
   if (name.toUpperCase() === "INBOX" || protectedNames.has(name)) {
-    throw new Error(`Refusing to delete protected mailbox: ${mailbox}`);
+    throw new Error(`Refusing to ${action} protected mailbox: ${mailbox}`);
   }
 }
 
