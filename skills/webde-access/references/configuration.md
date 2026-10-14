@@ -64,6 +64,17 @@ Local file limits and defaults:
 }
 ```
 
+- `allowedAttachmentRoots`: directories outgoing `fileAttachments` must be inside; empty allows any
+  file the OS user can read.
+- `markReadOnFetch`: when `true`, reading, replying to, or forwarding a message marks it as read.
+- `maxAttachmentMb` / `maxSourceMb`: hard limits for single attachments and complete messages;
+  larger downloads and exports fail instead of being cut off.
+
+The MCP server reads these settings only from the profile. `npm run auth:login` and
+`npm run auth:import-env` copy optional `WEBDE_*` variables (for example `WEBDE_SENT_MAILBOX` or
+`WEBDE_ALLOWED_ATTACHMENT_ROOTS`) into the profile when they are set and keep every other stored
+setting. Setting such a variable for a running server has no effect.
+
 WEB.DE setup requirements:
 
 - POP3/IMAP access must be enabled in WEB.DE settings.

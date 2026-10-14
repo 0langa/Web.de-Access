@@ -9,7 +9,7 @@ mailboxes. Credentials stay on the local machine and are never sent to a third-p
 - A WEB.DE account with IMAP access enabled
 - An application-specific WEB.DE password when required by the account
 - Node.js 20.19 or newer
-- Codex CLI or Codex desktop
+- Codex (CLI or desktop), Claude Code, or Kimi Code
 - Git
 
 ## 1. Prepare WEB.DE
@@ -80,6 +80,24 @@ The MCP server refuses to start when legacy WEB.DE password environment variable
 `.env` credentials are present. That fail-closed behavior prevents accidental credential leaks
 through repo copies, plugin caches, managed installs, or marketplace packaging.
 
+### Profile settings
+
+Each profile in `profiles.json` also holds the non-secret settings: folder names, the attachment
+download directory, size limits, allowed attachment roots, and the IMAP/SMTP endpoints. See
+[`profiles.example.json`](profiles.example.json) for every key and its default. The MCP server reads
+these settings only from this file; the setting variables below, such as `WEBDE_SENT_MAILBOX`, have no
+effect on a running server. `WEBDE_ACCESS_PROFILE` still selects which profile it uses.
+
+`auth:login` and `auth:import-env` copy optional `WEBDE_*` variables into the profile when they are
+set, for example `WEBDE_SENT_MAILBOX`, `WEBDE_ATTACHMENT_DOWNLOAD_DIR`, `WEBDE_MAX_ATTACHMENT_MB`,
+`WEBDE_MAX_SOURCE_MB`, `WEBDE_ALLOWED_ATTACHMENT_ROOTS`, `WEBDE_SMTP_PORT` or `WEBDE_SMTP_SECURE`.
+Settings whose variable is not set keep their stored value, so re-running `auth:login` to replace
+an app password does not reset the rest of the profile. To change a setting later, edit
+`profiles.json` directly or set the variable and run `auth:login` again.
+
+With `imapSecure: false` the IMAP connection requires STARTTLS, and with `smtpSecure: false` SMTP
+requires it as well, so the app password is never sent unencrypted.
+
 ## 4. Verify the Connection
 
 Run the read-only checks:
@@ -116,8 +134,8 @@ codex mcp add webde-access -- node "/absolute/path/to/Web.de Access/mcp/server.m
 Restart Codex or open a new thread after registration. The server loads credentials from the OS
 credential manager using the `personal` profile unless `WEBDE_ACCESS_PROFILE` is set.
 
-The repository is also a Codex plugin bundle through `.codex-plugin/plugin.json` and `.mcp.json` for
-users who maintain a local Codex plugin marketplace.
+The repository is also a Codex plugin bundle through `.codex-plugin/plugin.json` and `.codex-mcp.json`
+for users who maintain a local Codex plugin marketplace.
 
 ## Claude Code
 
@@ -184,12 +202,17 @@ Outgoing attachment paths are resolved on the machine running the MCP server. Th
 attach any regular file that the current operating-system user can read. This is intentionally
 powerful: only run the plugin in an account and workspace you trust.
 
-Downloaded filenames are sanitized and constrained to `WEBDE_ATTACHMENT_DOWNLOAD_DIR`. Limits are
-controlled with `WEBDE_MAX_ATTACHMENT_MB` and `WEBDE_MAX_SOURCE_MB`.
+Downloaded filenames are sanitized and constrained to the profile's `attachmentDownloadDir`. The
+profile limits `maxAttachmentMb` (attachments) and `maxSourceMb` (complete messages, used to export,
+read, and forward them) apply as hard limits: a download or export that would exceed them fails and
+leaves no partial file behind, `read_webde_message` reports `sourceTruncated` for a message it could
+read only in part, and forwarding the original attachments of such a message is refused.
 
-To restrict outgoing attachments to specific directories, set `WEBDE_ALLOWED_ATTACHMENT_ROOTS`.
-Separate multiple roots with `;` on Windows or `:` on macOS/Linux. Leave it empty to allow any
-regular file readable by the current user. Symbolic links are resolved before the allowlist check.
+To restrict outgoing attachments to specific directories, list them in the profile's
+`allowedAttachmentRoots` array, or set `WEBDE_ALLOWED_ATTACHMENT_ROOTS` before running
+`auth:login` (separate multiple roots with `;` on Windows or `:` on macOS/Linux). Leave it empty to
+allow any regular file readable by the current user. Symbolic links are resolved before the
+allowlist check.
 
 ## Optional Live E2E Test
 
@@ -216,31 +239,45 @@ stored in the credential manager or profile metadata.
 
 ### IMAP works but SMTP fails
 
-- Keep `WEBDE_SMTP_PORT=587` and `WEBDE_SMTP_SECURE=false` for STARTTLS.
+- Keep `smtpPort: 587` and `smtpSecure: false` in the profile for STARTTLS.
 - Check whether WEB.DE temporarily blocked external mail access after a security event.
+
+### A message was sent but the Sent copy is missing
+
+The send tools report `sentCopy.error` when SMTP accepted the message but saving the copy to the
+profile's `folders.sent` failed. The message itself went out, so do not send it again; fix the
+folder name in the profile instead.
 
 ### Drafts appear in the wrong folder
 
 Run `list_webde_mailboxes` and choose the folder marked with IMAP special use `\\Drafts`. Set its
-exact path as `WEBDE_DRAFTS_MAILBOX`.
+exact path as `folders.drafts` in the profile.
 
 ### Attachments fail
 
 - Use an absolute local path.
 - Confirm the server process can read the file.
-- Increase `WEBDE_MAX_ATTACHMENT_MB` only when necessary.
+- Increase `maxAttachmentMb` (attachments) or `maxSourceMb` (exporting, reading, or forwarding large
+  messages) in the profile only when necessary.
 - Confirm the download directory is writable.
 
 ## Development
 
+The offline checks run in CI on every push and pull request. None of them touches a mailbox or the
+OS credential store; the tests drive the IMAP code against a scripted server on `127.0.0.1` and
+build outgoing mail in memory.
+
 ```powershell
 npm ci
 npm run check
-npm run smoke -- --profile dev
+npm test
+npm run test:cold-start
 npm run security:scan
+npm audit --omit=dev --audit-level=high
 ```
 
-Do not run `npm run e2e:email` in CI without a dedicated test account and secret isolation.
+`npm run smoke -- --profile dev` additionally checks a real mailbox read-only. Do not run
+`npm run e2e:email` in CI without a dedicated test account and secret isolation.
 
 ### Fresh-install verification
 
