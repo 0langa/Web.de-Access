@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.14 - 2026-10-26
+
+- Refresh dependencies within their current major versions to address the advisories reported by the release workflow.
+
 ## 0.2.13 - 2026-10-26
 
 - Clarify setup, platform requirements, and marketplace presentation.
