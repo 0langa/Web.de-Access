@@ -1,7 +1,7 @@
 {
   "name": "webde-access",
-  "version": "0.2.12",
-  "description": "Private Web.de mailbox connector for Kimi Code through the same local MCP server used by Codex and Claude Code.",
+  "version": "0.2.13",
+  "description": "Read, organize, draft, and send mail from your WEB.DE account.",
   "keywords": [
     "webde",
     "email",
@@ -10,15 +10,15 @@
     "kimi-code"
   ],
   "author": {
-    "name": "Local developer"
+    "name": "0langa"
   },
   "homepage": "https://github.com/0langa/Web.de-Access",
   "license": "MIT",
   "interface": {
     "displayName": "Web.de Access",
-    "shortDescription": "Read, draft, send, and manage Web.de mail.",
-    "longDescription": "Adds private Web.de mailbox access through IMAP and SMTP, including mailbox listing, message search and reading, attachment download, message management, drafts, sending, replies, and forwarding.",
-    "developerName": "Local developer",
+    "shortDescription": "Read, organize, draft, and send mail from your WEB.DE account.",
+    "longDescription": "Read, organize, draft, and send mail from your WEB.DE account. Credentials are stored in the operating system credential manager. Kimi compatibility is legacy.",
+    "developerName": "0langa",
     "websiteURL": "https://github.com/0langa/Web.de-Access"
   },
   "skills": "./skills/",
@@ -34,5 +34,6 @@
       }
     }
   },
-  "skillInstructions": "Use Web.de Access only for the configured mailbox. Kimi Code must use the dev profile unless the user explicitly reconfigures it. Never read, print, or summarize credential files or WEB.DE auth environment variables. Confirm recipients, subject, and intent before sending email, and confirm before deleting or permanently mutating messages."
+  "skillInstructions": "Use Web.de Access only for the configured mailbox. Kimi Code must use the dev profile unless the user explicitly reconfigures it. Never read, print, or summarize credential files or WEB.DE auth environment variables. Confirm recipients, subject, and intent before sending email, and confirm before deleting or permanently mutating messages.",
+  "repository": "https://github.com/0langa/Web.de-Access"
 }

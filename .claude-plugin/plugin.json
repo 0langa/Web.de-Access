@@ -1,10 +1,13 @@
 {
   "name": "webde-access",
-  "version": "0.2.12",
-  "description": "Private full-access Web.de mailbox connector for Codex, Claude Code, and Kimi Code.",
+  "version": "0.2.13",
+  "description": "Read, organize, draft, and send mail from your WEB.DE account.",
   "author": {
-    "name": "Local developer"
+    "name": "0langa"
   },
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "license": "MIT",
+  "repository": "https://github.com/0langa/Web.de-Access",
+  "homepage": "https://github.com/0langa/Web.de-Access"
 }

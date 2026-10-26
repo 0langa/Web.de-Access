@@ -1,9 +1,9 @@
 {
   "name": "webde-access",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "private": true,
   "type": "module",
-  "description": "Private local MCP server for full Web.de mailbox access.",
+  "description": "Read, organize, draft, and send mail from your WEB.DE account.",
   "bin": {
     "webde-auth": "./scripts/webde-auth.mjs"
   },
@@ -38,5 +38,6 @@
   },
   "allowScripts": {
     "keytar@7.9.0": true
-  }
+  },
+  "license": "MIT"
 }

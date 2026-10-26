@@ -32,15 +32,19 @@ WEB.DE may change the names or location of settings. Consult the official
 
 ## 2. Install
 
+For a marketplace installation, add [0langa's Plugins](https://github.com/0langa/plugins) and install `webde-access@0langas-plugins`. Configure credentials using the included `auth:login` helper from the installed plugin directory. Never put credentials in marketplace files.
+
+The following commands are for a standalone source checkout:
+
 Clone the repository and install its pinned dependencies:
 
 ```powershell
 git clone https://github.com/0langa/Web.de-Access.git
-Set-Location "Web.de Access"
+Set-Location Web.de-Access
 npm ci
 ```
 
-On macOS or Linux, use `cd "Web.de Access"` instead of `Set-Location`.
+On macOS or Linux, use `cd Web.de-Access` instead of `Set-Location`.
 
 ## 3. Configure Credentials
 
@@ -289,3 +293,7 @@ npm audit --omit=dev --audit-level=high
 ### Fresh-install verification
 
 All provider entrypoints bootstrap the locked dependencies. The package approves only `keytar@7.9.0` for its required native install script under npm 12's install-script policy. `npm run test:cold-start` verifies a fresh Kimi entrypoint, the native binary, and MCP tool discovery without accessing a mailbox.
+
+## Maintenance
+
+Personally used and maintained as needed. Kimi compatibility is legacy and is not actively tested.
