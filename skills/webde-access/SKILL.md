@@ -41,24 +41,6 @@ For details beyond the normal workflow, use:
 8. Use `send_webde_email`, `reply_webde_email`, or `forward_webde_email` only when the user explicitly wants mail sent — treat these the same as any other irreversible, externally-visible action: confirm the recipients, subject, and intent in chat before calling the tool, every time, even if a similar send was approved earlier in the same session.
 9. Use message mutation tools (`mark_webde_messages`, `move_webde_messages`, `delete_webde_messages`, mailbox create/rename/delete) only for the requested mailbox and UID values, and confirm before any delete or permanent-removal action.
 
-## Mailbox Names
-
-Prefer configured profile metadata and live IMAP results over assumptions. Common WEB.DE folders in
-this account are:
-
-```text
-INBOX
-Gesendet
-Entwürfe
-Entwurf
-Papierkorb
-Spam
-Junk-E-Mail
-Postausgang
-Unbekannt
-wichtig
-```
-
 ## Safety
 
 - Treat this as a private mailbox connector with real account access.

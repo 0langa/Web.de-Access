@@ -23,7 +23,7 @@
       "Send this file as an attachment from my WEB.DE account."
     ],
     "brandColor": "#E7B93B",
-    "composerIcon": "./assets/icon.png",
+    "composerIcon": "./assets/logo.png",
     "logo": "./assets/logo.png",
     "screenshots": [
       "./assets/screenshot-1.png"
