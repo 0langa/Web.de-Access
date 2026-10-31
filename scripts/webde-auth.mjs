@@ -153,7 +153,6 @@ function knownLegacyEnvFiles() {
     path.join(repoRoot, ".env"),
     path.join(process.env.USERPROFILE || "", ".kimi-code", "plugins", "managed", "webde-access", ".env"),
     path.join(process.env.USERPROFILE || "", ".codex", "plugins", "cache", "personal", "webde-access", ".env"),
-    path.join(process.env.USERPROFILE || "", ".codex", "plugins", "cache", "personal", "webde-access", "0.2.0+codex.20260622150646", ".env"),
   ].filter(Boolean);
 }
 
