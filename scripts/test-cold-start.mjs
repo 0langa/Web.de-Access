@@ -38,8 +38,5 @@ try {
   const resolved = fs.realpathSync(fixture);
   assert.equal(path.dirname(resolved), temporaryRoot);
   assert.ok(path.basename(resolved).startsWith("webde-cold-start-"));
-  const hasKeep = (directory) => fs.readdirSync(directory, { withFileTypes: true }).some(
-    (entry) => entry.name === "KEEP" || (entry.isDirectory() && hasKeep(path.join(directory, entry.name))),
-  );
-  if (!hasKeep(resolved)) fs.rmSync(resolved, { recursive: true, force: true });
+  fs.rmSync(resolved, { recursive: true, force: true });
 }

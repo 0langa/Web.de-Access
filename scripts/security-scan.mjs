@@ -37,7 +37,6 @@ function walk(directory) {
         fullPath.endsWith(path.join("tests", "auth-config.test.mjs")) ||
         fullPath.endsWith("README.md") ||
         fullPath.endsWith(path.join("skills", "webde-access", "SKILL.md")) ||
-        fullPath.endsWith(path.join("claude-code", "skills", "webde-access", "SKILL.md")) ||
         fullPath.endsWith(path.join("skills", "webde-access", "references", "configuration.md"));
       if (!allowed) {
         findings.push(`Secret env variable reference outside auth/docs: ${path.relative(repoRoot, fullPath)}`);

@@ -4,7 +4,6 @@ import path from "node:path";
 
 export const CREDENTIAL_SERVICE = "webde-access";
 export const DEFAULT_PROFILE = "personal";
-export const DEFAULT_DEV_PROFILE = "dev";
 
 const standardLegacySecretNames = [
   "WEBDE_PASSWORD",
@@ -181,11 +180,9 @@ export function assertNoLegacyDotEnv(pluginRoot) {
 }
 
 export async function loadRuntimeConfig(options = {}) {
-  if (!options.allowLegacyEnv) {
-    assertNoLegacySecretEnv();
-    if (options.pluginRoot) {
-      assertNoLegacyDotEnv(options.pluginRoot);
-    }
+  assertNoLegacySecretEnv();
+  if (options.pluginRoot) {
+    assertNoLegacyDotEnv(options.pluginRoot);
   }
 
   const profile = resolveProfileName(options.profile);
