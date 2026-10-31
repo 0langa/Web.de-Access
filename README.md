@@ -296,4 +296,4 @@ All provider entrypoints bootstrap the locked dependencies. The package approves
 
 ## Maintenance
 
-Personally used and maintained as needed. Kimi compatibility is legacy.
+Personally used and maintained as needed. Kimi compatibility is legacy and is not actively tested.
